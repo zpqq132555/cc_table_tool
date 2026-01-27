@@ -1,6 +1,5 @@
 "use strict"; module.exports = {
-    open_panel: "Table",
-    send_to_panel: "Send message to Default Panel",
-    description: "Extension with a panel based on Vue3.x",
-    develop: "Develop",
+    description: "Vue Data Editor Tool - Cross-version Cocos Creator Extension",
+    develop: "Tools",
+    bundlePath: 'Asset URL Manager',
 };
