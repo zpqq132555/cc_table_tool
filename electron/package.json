@@ -1,0 +1,60 @@
+{
+    "name": "table-tool-electron",
+    "version": "1.0.0",
+    "description": "Table Tool Desktop App",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "build": "npm run build:vue && electron-builder",
+        "build:vue": "cd ../src/panels/vue-editor && npm run build:cocos",
+        "pack": "electron-builder --dir",
+        "dist": "electron-builder"
+    },
+    "dependencies": {
+    },
+    "devDependencies": {
+        "electron": "^28.0.0",
+        "electron-builder": "^24.9.1"
+    },
+    "build": {
+        "appId": "com.tabletool.editor",
+        "productName": "Table Tool",
+        "directories": {
+            "output": "release"
+        },
+        "files": [
+            "main.js",
+            "preload.js",
+            "../dist/vue-editor/**/*"
+        ],
+        "extraResources": [
+            {
+                "from": "../dist/vue-editor",
+                "to": "app"
+            }
+        ],
+        "win": {
+            "target": [
+                {
+                    "target": "nsis",
+                    "arch": ["x64"]
+                },
+                {
+                    "target": "portable",
+                    "arch": ["x64"]
+                }
+            ],
+            "icon": "icon.ico"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "createDesktopShortcut": true,
+            "createStartMenuShortcut": true
+        },
+        "mac": {
+            "target": ["dmg"],
+            "icon": "icon.icns"
+        }
+    }
+}

@@ -1,0 +1,34 @@
+/**
+ * Electron 预加载脚本
+ * 在渲染进程中暴露安全的 API
+ */
+const { contextBridge, ipcRenderer } = require('electron');
+
+// 暴露 API 到渲染进程
+contextBridge.exposeInMainWorld('electronAPI', {
+    // 平台标识
+    platform: 'electron',
+    
+    // 选择文件
+    selectFile: (options) => ipcRenderer.invoke('select-file', options),
+    
+    // 选择保存路径
+    selectSavePath: (options) => ipcRenderer.invoke('select-save-path', options),
+    
+    // 读取文件
+    readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
+    
+    // 写入文件
+    writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
+    
+    // 显示消息
+    showMessage: (message, type) => ipcRenderer.invoke('show-message', message, type),
+    
+    // 确认对话框
+    confirm: (message) => ipcRenderer.invoke('confirm', message),
+});
+
+// 标记为 Electron 环境
+window.addEventListener('DOMContentLoaded', () => {
+    console.log('[Preload] Electron environment ready');
+});
