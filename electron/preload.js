@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 选择保存路径
     selectSavePath: (options) => ipcRenderer.invoke('select-save-path', options),
     
+    // 选择文件夹
+    selectFolder: () => ipcRenderer.invoke('select-folder'),
+    
     // 读取文件
     readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
     
@@ -26,6 +29,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     // 确认对话框
     confirm: (message) => ipcRenderer.invoke('confirm', message),
+    
+    // 获取工作目录
+    getWorkingDirectory: () => ipcRenderer.invoke('get-working-directory'),
+    
+    // 设置工作目录
+    setWorkingDirectory: (dir) => ipcRenderer.invoke('set-working-directory', dir),
 });
 
 // 标记为 Electron 环境

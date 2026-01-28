@@ -116,4 +116,55 @@ export const standaloneApi: IEditorApi = {
     async confirm(message: string): Promise<boolean> {
         return window.confirm(message);
     },
+    
+    // ========== 扩展功能（浏览器受限） ==========
+    
+    async selectFolder(): Promise<string | null> {
+        console.warn('[Standalone] selectFolder not fully supported in browser');
+        // 使用目录选择（需要现代浏览器支持）
+        return new Promise((resolve) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            (input as any).webkitdirectory = true;
+            
+            input.onchange = (e) => {
+                const files = (e.target as HTMLInputElement).files;
+                if (files && files.length > 0) {
+                    // 返回第一个文件的相对路径前缀
+                    const path = files[0].webkitRelativePath;
+                    resolve(path ? path.split('/')[0] : null);
+                } else {
+                    resolve(null);
+                }
+            };
+            
+            input.click();
+        });
+    },
+    
+    async loadProjectData(relativePath: string): Promise<any | null> {
+        console.warn('[Standalone] loadProjectData not supported, use importData instead');
+        // 浏览器模式可以使用 localStorage 模拟
+        const key = `table_tool:${relativePath}`;
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : null;
+    },
+    
+    async saveProjectData(relativePath: string, data: any): Promise<boolean> {
+        console.warn('[Standalone] saveProjectData not supported, use exportData instead');
+        // 浏览器模式可以使用 localStorage 模拟
+        const key = `table_tool:${relativePath}`;
+        localStorage.setItem(key, JSON.stringify(data));
+        return true;
+    },
+    
+    getProjectPath(): string | null {
+        // 浏览器环境无项目路径概念
+        return null;
+    },
+    
+    getPluginPath(): string | null {
+        // 浏览器环境无插件路径概念
+        return null;
+    },
 };

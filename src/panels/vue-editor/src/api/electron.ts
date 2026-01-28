@@ -146,4 +146,50 @@ export const electronApi: IEditorApi = {
         }
         return window.confirm(message);
     },
+    
+    // ========== 扩展功能 ==========
+    
+    async selectFolder(): Promise<string | null> {
+        const api = getElectronAPI();
+        if (!api) return null;
+        
+        // 使用 selectFile 但设置为目录模式
+        return (api as any).selectFolder?.() || null;
+    },
+    
+    async loadProjectData(relativePath: string): Promise<any | null> {
+        const api = getElectronAPI();
+        if (!api) return null;
+        
+        try {
+            // Electron 模式使用工作目录
+            const content = await api.readFile(relativePath);
+            return content ? JSON.parse(content) : null;
+        } catch {
+            return null;
+        }
+    },
+    
+    async saveProjectData(relativePath: string, data: any): Promise<boolean> {
+        const api = getElectronAPI();
+        if (!api) return false;
+        
+        try {
+            const content = JSON.stringify(data, null, 2);
+            return api.writeFile(relativePath, content);
+        } catch {
+            return false;
+        }
+    },
+    
+    getProjectPath(): string | null {
+        // Electron 模式可以通过 API 获取
+        const api = getElectronAPI();
+        return (api as any).getWorkingDirectory?.() || null;
+    },
+    
+    getPluginPath(): string | null {
+        // Electron 模式下无插件概念
+        return null;
+    },
 };

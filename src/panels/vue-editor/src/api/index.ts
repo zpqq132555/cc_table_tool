@@ -1,6 +1,12 @@
 /**
  * API 统一接口层
  * 根据运行环境自动选择对应的实现
+ * 
+ * 支持四种运行模式：
+ * 1. Cocos 2.x 插件面板
+ * 2. Cocos 3.x 插件面板
+ * 3. Electron 桌面应用
+ * 4. 浏览器独立开发（Standalone）
  */
 
 import { cocosApi } from './cocos';
@@ -15,12 +21,14 @@ export interface IEditorApi {
     /** 平台标识 */
     platform: Platform;
     
+    // ========== 数据操作 ==========
     /** 导入数据 */
     importData(): Promise<any[] | null>;
     
     /** 导出数据 */
     exportData(data: any[]): Promise<boolean>;
     
+    // ========== 文件操作 ==========
     /** 读取文件 */
     readFile(path: string): Promise<string | null>;
     
@@ -28,16 +36,34 @@ export interface IEditorApi {
     writeFile(path: string, content: string): Promise<boolean>;
     
     /** 选择文件 */
-    selectFile(options?: { extensions?: string[] }): Promise<string | null>;
+    selectFile(options?: { extensions?: string[]; multi?: boolean }): Promise<string | null>;
     
     /** 选择保存路径 */
     selectSavePath(options?: { defaultName?: string; extensions?: string[] }): Promise<string | null>;
     
+    /** 选择文件夹 */
+    selectFolder?(): Promise<string | null>;
+    
+    // ========== 项目数据操作 ==========
+    /** 加载项目数据文件（相对路径） */
+    loadProjectData?(relativePath: string): Promise<any | null>;
+    
+    /** 保存项目数据文件（相对路径） */
+    saveProjectData?(relativePath: string, data: any): Promise<boolean>;
+    
+    // ========== UI 交互 ==========
     /** 显示消息 */
     showMessage(message: string, type?: 'info' | 'warning' | 'error'): void;
     
     /** 确认对话框 */
     confirm(message: string): Promise<boolean>;
+    
+    // ========== 项目信息 ==========
+    /** 获取项目路径 */
+    getProjectPath?(): string | null;
+    
+    /** 获取插件路径 */
+    getPluginPath?(): string | null;
 }
 
 // 当前平台
@@ -50,10 +76,24 @@ let currentApi: IEditorApi = standaloneApi;
  * 检测当前运行平台
  */
 export function detectPlatform(): Platform {
-    // 检测是否在 Cocos 编辑器环境
-    if (typeof (window as any).Editor !== 'undefined') {
-        const Editor = (window as any).Editor;
-        
+    // 方式1: 从 URL 参数读取（最优先，避免时序问题）
+    const urlParams = new URLSearchParams(window.location.search);
+    const platformParam = urlParams.get('platform');
+    if (platformParam && ['cocos-v2', 'cocos-v3', 'electron', 'standalone'].includes(platformParam)) {
+        return platformParam as Platform;
+    }
+    
+    // 方式2: 检测通过 iframe 注入的平台标识
+    if (typeof (window as any).__PLATFORM__ !== 'undefined') {
+        const platform = (window as any).__PLATFORM__;
+        if (['cocos-v2', 'cocos-v3', 'electron', 'standalone'].includes(platform)) {
+            return platform as Platform;
+        }
+    }
+    
+    // 方式3: 检测是否在 Cocos 编辑器环境（直接访问或 iframe 内）
+    const Editor = (window as any).Editor || (window as any).__COCOS_EDITOR__;
+    if (Editor) {
         // 检测版本
         if (Editor.App && Editor.App.version) {
             const version = Editor.App.version;
@@ -72,7 +112,12 @@ export function detectPlatform(): Platform {
         return 'cocos-v3'; // 默认 v3
     }
     
-    // 检测是否在 Electron 环境
+    // 方式4: 检测是否在 Electron 环境（通过 preload 暴露的 API）
+    if (typeof (window as any).electronAPI !== 'undefined') {
+        return 'electron';
+    }
+    
+    // 方式5: 备用检测 Electron require
     if (typeof (window as any).require !== 'undefined') {
         try {
             const electron = (window as any).require('electron');

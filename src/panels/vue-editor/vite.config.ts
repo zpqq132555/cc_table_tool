@@ -5,6 +5,11 @@ import { defineConfig } from 'vite';
 export default defineConfig(({ mode }) => {
     const isCocos = mode === 'cocos';
     
+    // 从命令行参数获取输出目录
+    const customOutDir = process.env.npm_config_outDir || process.argv.find(arg => arg.startsWith('--outDir='))?.split('=')[1];
+    const defaultOutDir = isCocos ? '../../../dist/vue-editor' : 'dist';
+    const outDir = customOutDir || defaultOutDir;
+    
     return {
         plugins: [vue2()],
         
@@ -17,7 +22,7 @@ export default defineConfig(({ mode }) => {
         base: isCocos ? './' : '/',
         
         build: {
-            outDir: isCocos ? '../../../dist/vue-editor' : 'dist',
+            outDir: outDir,
             emptyOutDir: true,
             rollupOptions: {
                 output: {

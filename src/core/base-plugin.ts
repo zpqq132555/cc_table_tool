@@ -140,19 +140,30 @@ export abstract class BasePlugin implements IPluginMain {
 export function createPluginMain(plugin: BasePlugin): any {
     const version = VersionDetector.detect();
 
+    // 绑定 methods/messages 中的函数到 plugin 实例
+    const bindMethods = (obj: Record<string, any> | undefined) => {
+        if (!obj) return {};
+        const bound: Record<string, any> = {};
+        for (const key of Object.keys(obj)) {
+            const fn = obj[key];
+            bound[key] = typeof fn === 'function' ? fn.bind(plugin) : fn;
+        }
+        return bound;
+    };
+
     if (version === CocosVersion.V2) {
         // V2.x 格式: module.exports = { load, unload, messages }
         return {
             load: () => plugin.load(),
             unload: () => plugin.unload(),
-            messages: plugin.messages || {},
+            messages: bindMethods(plugin.messages),
         };
     } else if (version === CocosVersion.V3) {
         // V3.x 格式: export { load, unload, methods }
         return {
             load: () => plugin.load(),
             unload: () => plugin.unload(),
-            methods: plugin.methods || {},
+            methods: bindMethods(plugin.methods),
         };
     }
 

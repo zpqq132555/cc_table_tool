@@ -224,4 +224,100 @@ export const cocosApi: IEditorApi = {
             }) === 0;
         }
     },
+    
+    // ========== 扩展功能 ==========
+    
+    async selectFolder(): Promise<string | null> {
+        try {
+            if (isV3()) {
+                const result = await Editor.Dialog.select({
+                    type: 'directory',
+                    multi: false,
+                });
+                return result?.filePaths?.[0] || null;
+            } else {
+                const result = Editor.Dialog.openFile({
+                    properties: ['openDirectory'],
+                });
+                return result?.[0] || null;
+            }
+        } catch (err) {
+            console.error('[Cocos API] selectFolder error:', err);
+            return null;
+        }
+    },
+    
+    async loadProjectData(relativePath: string): Promise<any | null> {
+        try {
+            const projectPath = cocosApi.getProjectPath?.();
+            if (!projectPath) return null;
+            
+            const path = require('path');
+            const fs = require('fs');
+            const fullPath = path.join(projectPath, relativePath);
+            
+            if (!fs.existsSync(fullPath)) return null;
+            
+            const content = fs.readFileSync(fullPath, 'utf-8');
+            return JSON.parse(content);
+        } catch (err) {
+            console.error('[Cocos API] loadProjectData error:', err);
+            return null;
+        }
+    },
+    
+    async saveProjectData(relativePath: string, data: any): Promise<boolean> {
+        try {
+            const projectPath = cocosApi.getProjectPath?.();
+            if (!projectPath) return false;
+            
+            const path = require('path');
+            const fs = require('fs');
+            const fullPath = path.join(projectPath, relativePath);
+            
+            // 确保目录存在
+            const dir = path.dirname(fullPath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+            
+            const content = JSON.stringify(data, null, 2);
+            fs.writeFileSync(fullPath, content, 'utf-8');
+            
+            // 刷新资源数据库
+            if (relativePath.startsWith('assets/')) {
+                const dbPath = `db://${relativePath}`;
+                if (isV3()) {
+                    await Editor.Message.request('asset-db', 'refresh-asset', dbPath);
+                } else {
+                    Editor.assetdb.refresh(dbPath);
+                }
+            }
+            
+            return true;
+        } catch (err) {
+            console.error('[Cocos API] saveProjectData error:', err);
+            return false;
+        }
+    },
+    
+    getProjectPath(): string | null {
+        if (isV3()) {
+            return Editor.Project?.path || null;
+        } else {
+            return Editor.Project?.path || Editor.projectPath || null;
+        }
+    },
+    
+    getPluginPath(): string | null {
+        if (isV3()) {
+            return Editor.Package?.getPath?.('table_tool') || null;
+        } else {
+            try {
+                return Editor.url('packages://table_tool/');
+            } catch {
+                return null;
+            }
+        }
+    },
 };

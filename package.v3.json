@@ -2,7 +2,7 @@
     "package_version": 2,
     "name": "table_tool",
     "version": "1.0.0",
-    "description": "Cross-version Cocos Creator extension",
+    "description": "Cross-version Cocos Creator extension with Vue Data Editor",
     "author": "oldP",
     "editor": ">=3.0.0",
     "main": "./dist/v3/main.js",
@@ -14,16 +14,30 @@
         "@types/node": "^18.17.1",
         "typescript": "^5.0.0"
     },
+    "contributions": {
+        "menu": [
+            {
+                "path": "i18n:table_tool.develop",
+                "label": "i18n:table_tool.dataEditor",
+                "message": "open-panel"
+            }
+        ],
+        "messages": {
+            "open-panel": {
+                "methods": ["openDataEditor"]
+            }
+        }
+    },
     "panels": {
         "default": {
-            "title": "Extensions Tools",
+            "title": "Table Tool - 数据编辑器",
             "type": "dockable",
             "main": "./dist/v3/panels/default/index.js",
             "size": {
-                "min-width": 400,
-                "min-height": 300,
-                "width": 600,
-                "height": 400
+                "min-width": 600,
+                "min-height": 400,
+                "width": 900,
+                "height": 600
             }
         }
     },

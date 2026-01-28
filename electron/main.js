@@ -143,3 +143,28 @@ ipcMain.handle('confirm', async (event, message) => {
     
     return result.response === 0;
 });
+
+// 选择文件夹
+ipcMain.handle('select-folder', async (event) => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+        title: '选择文件夹',
+        properties: ['openDirectory'],
+    });
+    
+    return result.canceled ? null : result.filePaths[0];
+});
+
+// 工作目录管理
+let workingDirectory = process.cwd();
+
+ipcMain.handle('get-working-directory', () => {
+    return workingDirectory;
+});
+
+ipcMain.handle('set-working-directory', (event, dir) => {
+    if (fs.existsSync(dir) && fs.statSync(dir).isDirectory()) {
+        workingDirectory = dir;
+        return true;
+    }
+    return false;
+});

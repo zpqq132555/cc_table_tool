@@ -24,3 +24,6 @@ export {
     BasePlugin, MessageMethod, createPluginMain
 } from './core/base-plugin';
 
+// 桥接层（用于 Vue 编辑器与插件通信）
+export * from './bridge';
+

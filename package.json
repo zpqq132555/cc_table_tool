@@ -2,39 +2,60 @@
     "package_version": 2,
     "name": "table_tool",
     "version": "1.0.0",
-    "description": "Cross-version Cocos Creator extension",
+    "description": "Cross-version Cocos Creator extension with Vue Data Editor",
     "author": "oldP",
     "editor": ">=3.0.0",
     "main": "./dist/v3/main.js",
     "scripts": {
         "preinstall": "node ./scripts/install.js",
-        "build": "npx tsc",
-        "build:v2": "npx tsc -p tsconfig.v2.json",
-        "build:v3": "npx tsc -p tsconfig.v3.json",
-        "watch": "npx tsc -w",
-        "dev:editor": "npm run dev --prefix src/panels/vue-editor",
-        "build:editor": "npm run build:cocos --prefix src/panels/vue-editor",
-        "dev:electron": "npm start --prefix electron -- --dev",
-        "build:exe": "npm run build --prefix electron",
         "install:editor": "npm install --prefix src/panels/vue-editor",
         "install:electron": "npm install --prefix electron",
-        "install:all": "npm install && npm run install:editor && npm run install:electron"
+        "install:all": "npm install && npm run install:editor && npm run install:electron",
+        "build": "npx tsc",
+        "build:v2": "npx tsc -p tsconfig.v2.json && npm run build:vue-v2",
+        "build:v3": "npx tsc -p tsconfig.v3.json && npm run build:vue-v3",
+        "build:vue-v2": "npm run build --prefix src/panels/vue-editor -- --mode cocos --outDir ../../../dist/v2/vue-editor",
+        "build:vue-v3": "npm run build --prefix src/panels/vue-editor -- --mode cocos --outDir ../../../dist/v3/vue-editor",
+        "build:all": "npm run build:v2 && npm run build:v3",
+        "watch": "npx tsc -w",
+        "build:editor": "npm run build:cocos --prefix src/panels/vue-editor",
+        "dev:editor": "npm run dev --prefix src/panels/vue-editor",
+        "dev:electron": "concurrently \"npm run dev:editor\" \"npm start --prefix electron -- --dev\"",
+        "dev:electron:only": "npm start --prefix electron -- --dev",
+        "build:exe": "npm run build --prefix electron"
     },
     "devDependencies": {
         "@types/node": "^18.17.1",
         "typescript": "^5.0.0",
-        "@cocos/creator-types": "^3.8.0"
+        "@cocos/creator-types": "^3.8.0",
+        "concurrently": "^8.2.0"
+    },
+    "contributions": {
+        "menu": [
+            {
+                "path": "i18n:table_tool.develop",
+                "label": "i18n:table_tool.dataEditor",
+                "message": "open-panel"
+            }
+        ],
+        "messages": {
+            "open-panel": {
+                "methods": [
+                    "openDataEditor"
+                ]
+            }
+        }
     },
     "panels": {
         "default": {
-            "title": "Extensions Tools",
+            "title": "Table Tool - 数据编辑器",
             "type": "dockable",
             "main": "./dist/v3/panels/default/index.js",
             "size": {
-                "min-width": 400,
-                "min-height": 300,
-                "width": 600,
-                "height": 400
+                "min-width": 600,
+                "min-height": 400,
+                "width": 900,
+                "height": 600
             }
         }
     },
