@@ -1,323 +1,83 @@
 /**
- * Cocos 编辑器模式 API 实现
- * 用于在 Cocos Creator 2.x/3.x 插件中运行
+ * Cocos Creator 插件 API 实现
+ * 通过 IPC 调用主进程的适配器功能
  */
 
 import type { IEditorApi, Platform } from './index';
 
-// Cocos Editor 类型声明
+// 声明全局 Editor 对象
 declare const Editor: any;
 
 /**
- * 检测是否为 Cocos 3.x
+ * 检测 Cocos 版本
  */
-function isV3(): boolean {
-    return typeof Editor !== 'undefined' && Editor.App && Editor.App.version;
+function getCocosVersion(): 'v2' | 'v3' | null {
+    if (typeof Editor === 'undefined') return null;
+    
+    // v3 使用 Editor.Message，v2 使用 Editor.Ipc
+    if ((Editor as any).Message) {
+        return 'v3';
+    } else if ((Editor as any).Ipc) {
+        return 'v2';
+    }
+    
+    return null;
+}
+
+/**
+ * 发送 IPC 消息到主进程
+ * 自动适配 v2/v3 的不同 IPC 方式
+ */
+function sendToMain(method: string, ...args: any[]): Promise<any> {
+    const version = getCocosVersion();
+    
+    if (version === 'v3') {
+        // Cocos 3.x 使用 Editor.Message.request
+        return (Editor as any).Message.request('table_tool', method, ...args);
+    } else if (version === 'v2') {
+        // Cocos 2.x 使用 Editor.Ipc.sendToMain
+        return new Promise((resolve, reject) => {
+            (Editor as any).Ipc.sendToMain('table_tool:' + method, ...args, (error: any, result: any) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(result);
+                }
+            });
+        });
+    }
+    
+    return Promise.reject(new Error('Not in Cocos environment'));
 }
 
 export const cocosApi: IEditorApi = {
-    platform: 'cocos-v3' as Platform,
-
-    async importData(): Promise<any[] | null> {
-        try {
-            let filePath: string | null = null;
-            
-            if (isV3()) {
-                // Cocos 3.x
-                const result = await Editor.Dialog.select({
-                    title: '选择数据文件',
-                    type: 'file',
-                    multi: false,
-                    filters: [
-                        { name: 'JSON Files', extensions: ['json'] },
-                        { name: 'All Files', extensions: ['*'] },
-                    ],
-                });
-                filePath = result?.filePaths?.[0] || null;
-            } else {
-                // Cocos 2.x
-                const result = Editor.Dialog.openFile({
-                    title: '选择数据文件',
-                    filters: [
-                        { name: 'JSON Files', extensions: ['json'] },
-                    ],
-                    properties: ['openFile'],
-                });
-                filePath = result?.[0] || null;
-            }
-            
-            if (!filePath) {
-                return null;
-            }
-            
-            // 读取文件内容
-            const fs = require('fs');
-            const content = fs.readFileSync(filePath, 'utf-8');
-            const data = JSON.parse(content);
-            
-            if (Array.isArray(data)) {
-                return data;
-            } else if (data.data && Array.isArray(data.data)) {
-                return data.data;
-            }
-            
-            this.showMessage('无效的数据格式', 'error');
-            return null;
-        } catch (err) {
-            this.showMessage(`导入失败: ${(err as Error).message}`, 'error');
-            return null;
-        }
-    },
-
-    async exportData(data: any[]): Promise<boolean> {
-        try {
-            let filePath: string | null = null;
-            
-            if (isV3()) {
-                // Cocos 3.x
-                const result = await Editor.Dialog.save({
-                    title: '保存数据文件',
-                    filters: [
-                        { name: 'JSON Files', extensions: ['json'] },
-                    ],
-                    default: `table_data_${Date.now()}.json`,
-                });
-                filePath = result?.filePath || null;
-            } else {
-                // Cocos 2.x
-                filePath = Editor.Dialog.saveFile({
-                    title: '保存数据文件',
-                    filters: [
-                        { name: 'JSON Files', extensions: ['json'] },
-                    ],
-                    defaultPath: `table_data_${Date.now()}.json`,
-                });
-            }
-            
-            if (!filePath) {
-                return false;
-            }
-            
-            // 写入文件
-            const fs = require('fs');
-            const json = JSON.stringify(data, null, 2);
-            fs.writeFileSync(filePath, json, 'utf-8');
-            
-            this.showMessage('导出成功！', 'info');
-            return true;
-        } catch (err) {
-            this.showMessage(`导出失败: ${(err as Error).message}`, 'error');
-            return false;
-        }
-    },
-
-    async readFile(path: string): Promise<string | null> {
-        try {
-            const fs = require('fs');
-            return fs.readFileSync(path, 'utf-8');
-        } catch (err) {
-            console.error('[Cocos API] readFile error:', err);
-            return null;
-        }
-    },
-
-    async writeFile(path: string, content: string): Promise<boolean> {
-        try {
-            const fs = require('fs');
-            fs.writeFileSync(path, content, 'utf-8');
-            return true;
-        } catch (err) {
-            console.error('[Cocos API] writeFile error:', err);
-            return false;
-        }
-    },
-
-    async selectFile(options?: { extensions?: string[] }): Promise<string | null> {
-        try {
-            if (isV3()) {
-                const result = await Editor.Dialog.select({
-                    type: 'file',
-                    multi: false,
-                    filters: options?.extensions 
-                        ? [{ name: 'Files', extensions: options.extensions }]
-                        : undefined,
-                });
-                return result?.filePaths?.[0] || null;
-            } else {
-                const result = Editor.Dialog.openFile({
-                    filters: options?.extensions 
-                        ? [{ name: 'Files', extensions: options.extensions }]
-                        : undefined,
-                    properties: ['openFile'],
-                });
-                return result?.[0] || null;
-            }
-        } catch (err) {
-            console.error('[Cocos API] selectFile error:', err);
-            return null;
-        }
-    },
-
-    async selectSavePath(options?: { defaultName?: string; extensions?: string[] }): Promise<string | null> {
-        try {
-            if (isV3()) {
-                const result = await Editor.Dialog.save({
-                    filters: options?.extensions 
-                        ? [{ name: 'Files', extensions: options.extensions }]
-                        : undefined,
-                    default: options?.defaultName,
-                });
-                return result?.filePath || null;
-            } else {
-                return Editor.Dialog.saveFile({
-                    filters: options?.extensions 
-                        ? [{ name: 'Files', extensions: options.extensions }]
-                        : undefined,
-                    defaultPath: options?.defaultName,
-                });
-            }
-        } catch (err) {
-            console.error('[Cocos API] selectSavePath error:', err);
-            return null;
-        }
-    },
-
-    showMessage(message: string, type?: 'info' | 'warning' | 'error'): void {
-        if (isV3()) {
-            switch (type) {
-                case 'error':
-                    Editor.Dialog.error('错误', { detail: message });
-                    break;
-                case 'warning':
-                    Editor.Dialog.warn('警告', { detail: message });
-                    break;
-                default:
-                    Editor.Dialog.info('提示', { detail: message });
-            }
-        } else {
-            // Cocos 2.x
-            switch (type) {
-                case 'error':
-                    Editor.error(message);
-                    break;
-                case 'warning':
-                    Editor.warn(message);
-                    break;
-                default:
-                    Editor.log(message);
-            }
-        }
-    },
-
-    async confirm(message: string): Promise<boolean> {
-        if (isV3()) {
-            const result = await Editor.Dialog.info('确认', {
-                detail: message,
-                buttons: ['确定', '取消'],
-            });
-            return result.response === 0;
-        } else {
-            return Editor.Dialog.messageBox({
-                type: 'question',
-                buttons: ['确定', '取消'],
-                message: message,
-            }) === 0;
-        }
+    platform: (getCocosVersion() === 'v3' ? 'cocos-v3' : 'cocos-v2') as Platform,
+    
+    async getProjectPath() {
+        return sendToMain('getProjectPath');
     },
     
-    // ========== 扩展功能 ==========
-    
-    async selectFolder(): Promise<string | null> {
-        try {
-            if (isV3()) {
-                const result = await Editor.Dialog.select({
-                    type: 'directory',
-                    multi: false,
-                });
-                return result?.filePaths?.[0] || null;
-            } else {
-                const result = Editor.Dialog.openFile({
-                    properties: ['openDirectory'],
-                });
-                return result?.[0] || null;
-            }
-        } catch (err) {
-            console.error('[Cocos API] selectFolder error:', err);
-            return null;
-        }
+    async readBinaryFile(path: string) {
+        return sendToMain('readBinaryFile', path);
     },
     
-    async loadProjectData(relativePath: string): Promise<any | null> {
-        try {
-            const projectPath = cocosApi.getProjectPath?.();
-            if (!projectPath) return null;
-            
-            const path = require('path');
-            const fs = require('fs');
-            const fullPath = path.join(projectPath, relativePath);
-            
-            if (!fs.existsSync(fullPath)) return null;
-            
-            const content = fs.readFileSync(fullPath, 'utf-8');
-            return JSON.parse(content);
-        } catch (err) {
-            console.error('[Cocos API] loadProjectData error:', err);
-            return null;
-        }
+    async writeBinaryFile(path: string, data: ArrayBuffer) {
+        return sendToMain('writeBinaryFile', path, data);
     },
     
-    async saveProjectData(relativePath: string, data: any): Promise<boolean> {
-        try {
-            const projectPath = cocosApi.getProjectPath?.();
-            if (!projectPath) return false;
-            
-            const path = require('path');
-            const fs = require('fs');
-            const fullPath = path.join(projectPath, relativePath);
-            
-            // 确保目录存在
-            const dir = path.dirname(fullPath);
-            if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, { recursive: true });
-            }
-            
-            const content = JSON.stringify(data, null, 2);
-            fs.writeFileSync(fullPath, content, 'utf-8');
-            
-            // 刷新资源数据库
-            if (relativePath.startsWith('assets/')) {
-                const dbPath = `db://${relativePath}`;
-                if (isV3()) {
-                    await Editor.Message.request('asset-db', 'refresh-asset', dbPath);
-                } else {
-                    Editor.assetdb.refresh(dbPath);
-                }
-            }
-            
-            return true;
-        } catch (err) {
-            console.error('[Cocos API] saveProjectData error:', err);
-            return false;
-        }
+    async selectFile(options) {
+        return sendToMain('selectFile', options);
     },
     
-    getProjectPath(): string | null {
-        if (isV3()) {
-            return Editor.Project?.path || null;
-        } else {
-            return Editor.Project?.path || Editor.projectPath || null;
-        }
+    async selectSavePath(options) {
+        return sendToMain('selectSavePath', options);
     },
     
-    getPluginPath(): string | null {
-        if (isV3()) {
-            return Editor.Package?.getPath?.('table_tool') || null;
-        } else {
-            try {
-                return Editor.url('packages://table_tool/');
-            } catch {
-                return null;
-            }
-        }
+    async exists(path: string) {
+        return sendToMain('exists', path);
+    },
+    
+    async createDirectory(path: string) {
+        return sendToMain('createDirectory', path);
     },
 };

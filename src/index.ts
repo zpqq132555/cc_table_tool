@@ -7,10 +7,9 @@ export * from './core/interfaces';
 
 // 版本检测
 export {
-    VersionDetector,
     detectVersion,
     isV2,
-    isV3
+    isV3, VersionDetector
 } from './core/version-detector';
 
 // 工厂模式
@@ -21,9 +20,7 @@ export {
 
 // 基础插件类
 export {
-    BasePlugin, MessageMethod, createPluginMain
+    BasePlugin, createPluginMain, MessageMethod
 } from './core/base-plugin';
 
-// 桥接层（用于 Vue 编辑器与插件通信）
-export * from './bridge';
 

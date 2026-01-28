@@ -113,10 +113,45 @@ ipcMain.handle('read-file', async (event, filePath) => {
 // 写入文件
 ipcMain.handle('write-file', async (event, filePath, content) => {
     try {
+        // 确保目录存在
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
         fs.writeFileSync(filePath, content, 'utf-8');
         return true;
     } catch (err) {
         console.error('Write file error:', err);
+        return false;
+    }
+});
+
+// 读取二进制文件
+ipcMain.handle('read-binary-file', async (event, filePath) => {
+    try {
+        const buffer = fs.readFileSync(filePath);
+        return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    } catch (err) {
+        console.error('Read binary file error:', err);
+        return null;
+    }
+});
+
+// 写入二进制文件
+ipcMain.handle('write-binary-file', async (event, filePath, data) => {
+    try {
+        // 确保目录存在
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        
+        // ArrayBuffer 转换为 Node.js Buffer
+        const buffer = Buffer.from(data);
+        fs.writeFileSync(filePath, buffer);
+        return true;
+    } catch (err) {
+        console.error('Write binary file error:', err);
         return false;
     }
 });
@@ -145,7 +180,7 @@ ipcMain.handle('confirm', async (event, message) => {
 });
 
 // 选择文件夹
-ipcMain.handle('select-folder', async (event) => {
+ipcMain.handle('select-directory', async (event) => {
     const result = await dialog.showOpenDialog(mainWindow, {
         title: '选择文件夹',
         properties: ['openDirectory'],

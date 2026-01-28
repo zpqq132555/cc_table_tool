@@ -16,13 +16,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     selectSavePath: (options) => ipcRenderer.invoke('select-save-path', options),
     
     // 选择文件夹
-    selectFolder: () => ipcRenderer.invoke('select-folder'),
+    selectDirectory: () => ipcRenderer.invoke('select-directory'),
     
-    // 读取文件
+    // 读取文件（文本）
     readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
     
-    // 写入文件
+    // 写入文件（文本）
     writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
+    
+    // 读取二进制文件
+    readBinaryFile: (filePath) => ipcRenderer.invoke('read-binary-file', filePath),
+    
+    // 写入二进制文件
+    writeBinaryFile: (filePath, data) => ipcRenderer.invoke('write-binary-file', filePath, data),
     
     // 显示消息
     showMessage: (message, type) => ipcRenderer.invoke('show-message', message, type),

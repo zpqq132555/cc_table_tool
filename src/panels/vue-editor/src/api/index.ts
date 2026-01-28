@@ -10,7 +10,6 @@
  */
 
 import { cocosApi } from './cocos';
-import { electronApi } from './electron';
 import { standaloneApi } from './standalone';
 
 // 平台类型
@@ -21,49 +20,26 @@ export interface IEditorApi {
     /** 平台标识 */
     platform: Platform;
     
-    // ========== 数据操作 ==========
-    /** 导入数据 */
-    importData(): Promise<any[] | null>;
+    /** 获取项目路径（仅 Cocos） */
+    getProjectPath?(): Promise<string | null>;
     
-    /** 导出数据 */
-    exportData(data: any[]): Promise<boolean>;
+    /** 读取二进制文件 */
+    readBinaryFile(path: string): Promise<ArrayBuffer | null>;
     
-    // ========== 文件操作 ==========
-    /** 读取文件 */
-    readFile(path: string): Promise<string | null>;
-    
-    /** 写入文件 */
-    writeFile(path: string, content: string): Promise<boolean>;
+    /** 写入二进制文件 */
+    writeBinaryFile(path: string, data: ArrayBuffer): Promise<boolean>;
     
     /** 选择文件 */
-    selectFile(options?: { extensions?: string[]; multi?: boolean }): Promise<string | null>;
+    selectFile(options?: { title?: string; extensions?: string[] }): Promise<string | null>;
     
     /** 选择保存路径 */
-    selectSavePath(options?: { defaultName?: string; extensions?: string[] }): Promise<string | null>;
+    selectSavePath(options?: { title?: string; defaultName?: string; extensions?: string[] }): Promise<string | null>;
     
-    /** 选择文件夹 */
-    selectFolder?(): Promise<string | null>;
+    /** 检查文件/目录是否存在 */
+    exists(path: string): Promise<boolean>;
     
-    // ========== 项目数据操作 ==========
-    /** 加载项目数据文件（相对路径） */
-    loadProjectData?(relativePath: string): Promise<any | null>;
-    
-    /** 保存项目数据文件（相对路径） */
-    saveProjectData?(relativePath: string, data: any): Promise<boolean>;
-    
-    // ========== UI 交互 ==========
-    /** 显示消息 */
-    showMessage(message: string, type?: 'info' | 'warning' | 'error'): void;
-    
-    /** 确认对话框 */
-    confirm(message: string): Promise<boolean>;
-    
-    // ========== 项目信息 ==========
-    /** 获取项目路径 */
-    getProjectPath?(): string | null;
-    
-    /** 获取插件路径 */
-    getPluginPath?(): string | null;
+    /** 创建目录 */
+    createDirectory(path: string): Promise<boolean>;
 }
 
 // 当前平台
@@ -143,14 +119,21 @@ export function initPlatform(): void {
         case 'cocos-v3':
             currentApi = cocosApi;
             break;
-        case 'electron':
-            currentApi = electronApi;
-            break;
+        // case 'electron':
+        //     currentApi = electronApi;
+        //     break;
         default:
             currentApi = standaloneApi;
     }
     
     console.log(`[Table Tool] Platform: ${currentPlatform}`);
+}
+
+/**
+ * 获取当前平台
+ */
+export function getPlatform(): Platform {
+    return currentPlatform;
 }
 
 /**
