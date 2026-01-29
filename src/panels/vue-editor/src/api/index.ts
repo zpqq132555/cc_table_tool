@@ -32,8 +32,20 @@ export interface IEditorApi {
     /** 选择文件 */
     selectFile(options?: { title?: string; extensions?: string[] }): Promise<string | null>;
     
+    /** 选择目录 */
+    selectDirectory(options?: { title?: string }): Promise<string | null>;
+    
     /** 选择保存路径 */
     selectSavePath(options?: { title?: string; defaultName?: string; extensions?: string[] }): Promise<string | null>;
+    
+    /** 读取文本文件 */
+    readFile(path: string): Promise<string | null>;
+    
+    /** 读取二进制文件 */
+    readBinaryFile(path: string): Promise<ArrayBuffer | null>;
+    
+    /** 写入二进制文件 */
+    writeBinaryFile(path: string, data: ArrayBuffer): Promise<boolean>;
     
     /** 检查文件/目录是否存在 */
     exists(path: string): Promise<boolean>;

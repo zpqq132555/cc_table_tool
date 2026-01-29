@@ -34,7 +34,22 @@ export const standaloneApi: IEditorApi = {
     
     async writeBinaryFile(path: string, data: ArrayBuffer) {
         try {
-            // 使用 File System Access API
+            // 优先使用缓存的文件句柄（避免重复弹出保存对话框）
+            const cachedHandle = fileHandleCache.get(path);
+            if (cachedHandle) {
+                try {
+                    const writable = await cachedHandle.createWritable();
+                    await writable.write(data);
+                    await writable.close();
+                    console.log('[Standalone] 使用缓存句柄保存成功:', path);
+                    return true;
+                } catch (err) {
+                    console.warn('[Standalone] 缓存句柄失效，尝试重新选择:', err);
+                    fileHandleCache.delete(path);
+                }
+            }
+            
+            // 使用 File System Access API（首次保存或缓存失效时）
             if ('showSaveFilePicker' in window) {
                 const handle = await (window as any).showSaveFilePicker({
                     suggestedName: path.split(/[\\/]/).pop() || 'data.table',
@@ -79,9 +94,16 @@ export const standaloneApi: IEditorApi = {
                 const [handle] = await (window as any).showOpenFilePicker({ types });
                 const file = await handle.getFile();
                 
-                // 缓存文件句柄和路径
-                fileHandleCache.set(file.name, handle);
-                return file.name;
+                // 缓存文件句柄（使用完整路径作为 key）
+                const filePath = file.name;
+                fileHandleCache.set(filePath, handle);
+                
+                // 对于 JSON 文件，额外缓存文件对象用于读取
+                if (filePath.endsWith('.json')) {
+                    (fileHandleCache as any).set(`${filePath}:file`, file);
+                }
+                
+                return filePath;
             }
             
             // 回退：传统文件选择
@@ -95,8 +117,10 @@ export const standaloneApi: IEditorApi = {
                 input.onchange = async (e) => {
                     const file = (e.target as HTMLInputElement).files?.[0];
                     if (file) {
-                        // 传统方式无法获取句柄，但可以缓存文件内容
-                        resolve(file.name);
+                        // 传统方式：直接缓存文件对象
+                        const filePath = file.name;
+                        (fileHandleCache as any).set(`${filePath}:file`, file);
+                        resolve(filePath);
                     } else {
                         resolve(null);
                     }
@@ -106,6 +130,48 @@ export const standaloneApi: IEditorApi = {
             });
         } catch (err) {
             console.error('[Standalone] 选择文件失败:', err);
+            return null;
+        }
+    },
+    
+    async selectDirectory(options) {
+        try {
+            if ('showDirectoryPicker' in window) {
+                const handle = await (window as any).showDirectoryPicker();
+                return handle.name;
+            }
+            
+            console.warn('[Standalone] 浏览器不支持目录选择');
+            return null;
+        } catch (err) {
+            console.error('[Standalone] 选择目录失败:', err);
+            return null;
+        }
+    },
+    
+    async readFile(path: string) {
+        // 先尝试从缓存获取 File 对象
+        const cachedFile = (fileHandleCache as any).get(`${path}:file`);
+        if (cachedFile) {
+            try {
+                return await cachedFile.text();
+            } catch (err) {
+                console.error('[Standalone] 读取缓存文件失败:', err);
+            }
+        }
+        
+        // 尝试从句柄读取
+        const handle = fileHandleCache.get(path);
+        if (!handle) {
+            console.warn('[Standalone] 文件未缓存，请先选择文件');
+            return null;
+        }
+        
+        try {
+            const file = await handle.getFile();
+            return await file.text();
+        } catch (err) {
+            console.error('[Standalone] 读取文件失败:', err);
             return null;
         }
     },

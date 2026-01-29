@@ -1,11 +1,41 @@
 <template>
   <div class="app-container">
+    <!-- 配置管理页面（完全独立） -->
+    <template v-if="currentView === 'config'">
+      <ConfigManage 
+        @back="currentView = 'main'" 
+        @add="handleAddTable"
+        @edit="handleEditTable"
+        @delete="handleDeleteTable"
+      />
+    </template>
+    
+    <!-- 表格编辑器页面 -->
+    <template v-else-if="currentView === 'table-editor'">
+      <TableEditor 
+        :tableKey="editingTableKey"
+        @back="currentView = 'config'"
+        @saved="handleTableSaved"
+      />
+    </template>
+
+    <!-- 数据编辑页面 -->
+    <template v-else-if="currentView === 'data-editor'">
+      <DataEditor 
+        :tableKey="editingTableKey"
+        @back="currentView = 'main'"
+        @saved="handleDataSaved"
+      />
+    </template>
+
+    <!-- 主页面 -->
+    <template v-else>
     <header class="app-header">
       <h1>🗂️ Table Tool</h1>
       <span class="version-badge">{{ platform }}</span>
       
       <!-- Cocos 渠道显示配置管理按钮 -->
-      <template v-if="dataLoaded">
+      <template v-if="dataManager.isLoaded">
         <div class="header-spacer"></div>
         <button class="btn btn-secondary" @click="handleConfigManage">
           ⚙️ 配置管理
@@ -25,16 +55,16 @@
     </header>
 
     <!-- 数据信息栏 -->
-    <div v-if="dataLoaded" class="data-info">
+    <div v-if="dataManager.isLoaded" class="data-info">
       <div class="info-left">
         <span class="info-label">📊 表数据管理</span>
         <span class="info-divider">|</span>
-        <span class="info-item">表数量：<strong>{{ tableList.length }}</strong></span>
+        <span class="info-item">表数量：<strong>{{ dataManager.tableList.length }}</strong></span>
         <span class="info-divider">|</span>
-        <span class="info-item">数据大小：<strong>{{ dataSize }}</strong> 字节</span>
+        <span class="info-item">数据大小：<strong>{{ dataManager.dataSize }}</strong> 字节</span>
       </div>
       <div class="info-right">
-        <span class="info-path" :title="currentFilePath">{{ currentFilePath }}</span>
+        <span class="info-path" :title="dataManager.filePath">{{ dataManager.filePath }}</span>
       </div>
     </div>
 
@@ -46,7 +76,7 @@
       </div>
       
       <!-- 欢迎页面 -->
-      <div v-else-if="!dataLoaded" class="welcome-panel">
+      <div v-else-if="!dataManager.isLoaded" class="welcome-panel">
         <h2>欢迎使用表格工具</h2>
         <p>当前运行平台：<strong>{{ platform }}</strong></p>
         <p v-if="isCocos" class="tip">Cocos 模式下自动加载项目数据...</p>
@@ -56,16 +86,15 @@
       <!-- 数据已加载 -->
       <div v-else class="data-panel">
         <!-- 表按钮网格 -->
-        <div v-if="tableList.length > 0" class="table-grid">
+        <div v-if="dataManager.tableList.length > 0" class="table-grid">
           <button
-            v-for="table in tableList"
+            v-for="table in dataManager.tableList"
             :key="table.key"
             class="table-btn"
             @click="handleOpenTable(table)"
             :title="table.desc || table.name"
           >
-            <div class="table-btn-index">{{ table.index }}</div>
-            <div class="table-btn-name">{{ table.name }}</div>
+            <div class="table-btn-name">📋{{ table.name }}</div>
             <div class="table-btn-path" v-if="table.exportPath">{{ table.exportPath }}</div>
           </button>
         </div>
@@ -77,12 +106,17 @@
         </div>
       </div>
     </main>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { api, getPlatform } from './api';
+import ConfigManage from './components/ConfigManage.vue';
+import DataEditor from './components/DataEditor.vue';
+import TableEditor from './components/TableEditor.vue';
+import { dataManager } from './utils/dataManager';
 
 // 平台信息
 const platform = ref<string>(getPlatform());
@@ -92,108 +126,11 @@ const isCocos = computed(() => platform.value.startsWith('cocos'));
 const loading = ref(false);
 const loadingMessage = ref('');
 
-// 数据状态
-const dataLoaded = ref(false);
-const currentFilePath = ref('');
-const currentData = ref<ArrayBuffer | null>(null);
-const parsedDataSource = ref<any>(null);
+// 视图状态
+const currentView = ref<'main' | 'config' | 'table-editor' | 'data-editor'>('main');
 
-const dataSize = computed(() => currentData.value?.byteLength || 0);
-
-// 表列表（按 index 排序）
-const tableList = computed(() => {
-  if (!parsedDataSource.value?.data) return [];
-  
-  const tables = Object.entries(parsedDataSource.value.data).map(([key, value]: [string, any]) => ({
-    key,
-    index: value.index,
-    name: value.name,
-    desc: value.desc,
-    exportPath: value.exportPath,
-  }));
-  
-  // 按 index 排序
-  return tables.sort((a, b) => a.index - b.index);
-});
-
-// ==================== 创建空数据 ====================
-function createEmptyData(): ArrayBuffer {
-  // 导入数据源工具
-  const dataSource = {
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    version: 1,
-    data: {},
-  };
-  
-  // 序列化为加密二进制格式
-  return serializeDataSource(dataSource);
-}
-
-// 简单的序列化函数
-function serializeDataSource(dataSource: any): ArrayBuffer {
-  const MAGIC_NUMBER = 0x5442_4C45;
-  const ENCRYPT_KEY = 'table_tool_2024';
-  
-  // 更新时间戳
-  dataSource.updatedAt = Date.now();
-  
-  // 转换为 JSON 字符串
-  const jsonStr = JSON.stringify(dataSource);
-  const jsonBytes = new TextEncoder().encode(jsonStr);
-  
-  // 简单 XOR 加密
-  const keyBytes = new TextEncoder().encode(ENCRYPT_KEY);
-  const encryptedBytes = new Uint8Array(jsonBytes.length);
-  for (let i = 0; i < jsonBytes.length; i++) {
-    encryptedBytes[i] = jsonBytes[i] ^ keyBytes[i % keyBytes.length];
-  }
-  
-  // 构建文件头：魔数(4) + 版本(4) + 数据长度(4) + 加密数据
-  const header = new ArrayBuffer(12);
-  const headerView = new DataView(header);
-  headerView.setUint32(0, MAGIC_NUMBER, false);
-  headerView.setUint32(4, 1, false);
-  headerView.setUint32(8, encryptedBytes.length, false);
-  
-  // 合并头部和数据
-  const result = new Uint8Array(12 + encryptedBytes.length);
-  result.set(new Uint8Array(header), 0);
-  result.set(encryptedBytes, 12);
-  
-  return result.buffer;
-}
-
-// 简单的反序列化函数
-function deserializeDataSource(buffer: ArrayBuffer): any {
-  const MAGIC_NUMBER = 0x5442_4C45;
-  const ENCRYPT_KEY = 'table_tool_2024';
-  
-  const view = new DataView(buffer);
-  
-  // 验证魔数
-  const magic = view.getUint32(0, false);
-  if (magic !== MAGIC_NUMBER) {
-    throw new Error('无效的 .table 文件格式');
-  }
-  
-  // 读取数据长度
-  const dataLength = view.getUint32(8, false);
-  
-  // 提取加密数据
-  const encryptedBytes = new Uint8Array(buffer, 12, dataLength);
-  
-  // XOR 解密
-  const keyBytes = new TextEncoder().encode(ENCRYPT_KEY);
-  const decryptedBytes = new Uint8Array(encryptedBytes.length);
-  for (let i = 0; i < encryptedBytes.length; i++) {
-    decryptedBytes[i] = encryptedBytes[i] ^ keyBytes[i % keyBytes.length];
-  }
-  
-  // 解析 JSON
-  const jsonStr = new TextDecoder().decode(decryptedBytes);
-  return JSON.parse(jsonStr);
-}
+// 正在编辑的表 key
+const editingTableKey = ref<string | undefined>(undefined);
 
 // ==================== 创建数据 ====================
 async function handleCreateData() {
@@ -213,23 +150,10 @@ async function handleCreateData() {
       return;
     }
     
-    // 创建空数据
-    const emptyData = createEmptyData();
+    // 使用数据管理器创建
+    await dataManager.create(savePath);
     
-    // 写入文件
-    const success = await api.writeBinaryFile(savePath, emptyData);
-    
-    if (success) {
-      // 解析初始数据
-      parsedDataSource.value = deserializeDataSource(emptyData);
-      
-      currentFilePath.value = savePath;
-      currentData.value = emptyData;
-      dataLoaded.value = true;
-      console.log('[App] 数据创建成功:', savePath);
-    } else {
-      alert('创建数据失败！');
-    }
+    console.log('[App] 数据创建成功:', savePath);
   } catch (err) {
     console.error('[App] 创建数据失败:', err);
     alert('创建数据失败: ' + (err as Error).message);
@@ -255,27 +179,10 @@ async function handleLoadData() {
       return;
     }
     
-    // 读取文件
-    const data = await api.readBinaryFile(filePath);
+    // 使用数据管理器加载
+    await dataManager.load(filePath);
     
-    if (data) {
-      // 解析数据为 object
-      try {
-        const parsedData = deserializeDataSource(data);
-        parsedDataSource.value = parsedData;
-        console.log('[App] 解析后的数据:', parsedData);
-        console.log('[App] 表列表:', tableList.value);
-      } catch (parseErr) {
-        console.error('[App] 解析数据失败:', parseErr);
-      }
-      
-      currentFilePath.value = filePath;
-      currentData.value = data;
-      dataLoaded.value = true;
-      console.log('[App] 数据读取成功:', filePath);
-    } else {
-      alert('读取数据失败！');
-    }
+    console.log('[App] 数据读取成功:', filePath);
   } catch (err) {
     console.error('[App] 读取数据失败:', err);
     alert('读取数据失败: ' + (err as Error).message);
@@ -287,26 +194,72 @@ async function handleLoadData() {
 // ==================== 配置管理 ====================
 async function handleConfigManage() {
   try {
-    if (!currentData.value) {
+    if (!dataManager.isLoaded) {
       alert('请先加载数据！');
       return;
     }
     
-    console.log('[App] 配置管理 - 当前数据:', parsedDataSource.value);
+    console.log('[App] 打开配置管理');
     
-    // TODO: 打开配置管理界面
-    alert('配置管理功能开发中...');
+    // 切换到配置管理页面
+    currentView.value = 'config';
   } catch (err) {
     console.error('[App] 配置管理失败:', err);
     alert('配置管理失败: ' + (err as Error).message);
   }
 }
 
+// ==================== 返回主页 ====================
+function handleBackToMain() {
+  currentView.value = 'main';
+}
+
+// ==================== 新增表 ====================
+function handleAddTable() {
+  console.log('[App] 新增数据表');
+  editingTableKey.value = undefined;
+  currentView.value = 'table-editor';
+}
+
+// ==================== 编辑表 ====================
+function handleEditTable(table: { key: string }) {
+  console.log('[App] 编辑表:', table);
+  editingTableKey.value = table.key;
+  currentView.value = 'table-editor';
+}
+
+// ==================== 表保存成功 ====================
+function handleTableSaved() {
+  console.log('[App] 表保存成功');
+  currentView.value = 'config';
+}
+
+// ==================== 删除表 ====================
+async function handleDeleteTable(table: { key: string; name: string }) {
+  console.log('[App] 删除表:', table);
+  // 确认删除
+  if (confirm(`确定要删除表 "${table.name}" 吗？\n此操作不可恢复！`)) {
+    try {
+      await dataManager.deleteTable(table.key);
+      console.log('[App] 表已删除:', table.key);
+    } catch (err) {
+      console.error('[App] 删除表失败:', err);
+      alert('删除表失败: ' + (err as Error).message);
+    }
+  }
+}
+
 // ==================== 打开表 ====================
 function handleOpenTable(table: any) {
   console.log('[App] 打开表:', table);
-  // TODO: 打开表编辑界面
-  alert(`打开表: ${table.name}\n索引: ${table.index}\n导出路径: ${table.exportPath}`);
+  editingTableKey.value = table.key;
+  currentView.value = 'data-editor';
+}
+
+// ==================== 数据保存成功 ====================
+function handleDataSaved() {
+  console.log('[App] 数据保存成功');
+  // 保持在数据编辑页面
 }
 
 // ==================== Cocos 自动加载 ====================
@@ -339,44 +292,13 @@ async function autoLoadCocosData() {
     const fileExists = await api.exists(dataFile);
     
     if (fileExists) {
-      // 读取现有文件
-      console.log('[App] 读取现有数据文件...');
-      const data = await api.readBinaryFile(dataFile);
-      if (data) {
-        // 解析数据为 object
-        try {
-          const parsedData = deserializeDataSource(data);
-          parsedDataSource.value = parsedData;
-          console.log('[App] 解析后的数据:', parsedData);
-          console.log('[App] 表列表:', tableList.value);
-        } catch (parseErr) {
-          console.error('[App] 解析数据失败:', parseErr);
-        }
-        
-        currentFilePath.value = dataFile;
-        currentData.value = data;
-        dataLoaded.value = true;
-        console.log('[App] 数据加载成功');
-      } else {
-        throw new Error('读取数据文件失败');
-      }
+      // 使用数据管理器加载
+      await dataManager.load(dataFile);
+      console.log('[App] 数据加载成功');
     } else {
-      // 创建新文件
-      console.log('[App] 数据文件不存在，创建新文件...');
-      const emptyData = createEmptyData();
-      const success = await api.writeBinaryFile(dataFile, emptyData);
-      
-      if (success) {
-        // 解析初始数据
-        parsedDataSource.value = deserializeDataSource(emptyData);
-        
-        currentFilePath.value = dataFile;
-        currentData.value = emptyData;
-        dataLoaded.value = true;
-        console.log('[App] 数据创建成功');
-      } else {
-        throw new Error('创建数据文件失败');
-      }
+      // 使用数据管理器创建
+      await dataManager.create(dataFile);
+      console.log('[App] 数据创建成功');
     }
   } catch (err) {
     console.error('[App] 自动加载失败:', err);
@@ -476,11 +398,13 @@ onMounted(() => {
 
 .app-main {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 40px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  min-height: 0;
 }
 
 .welcome-panel {
@@ -605,7 +529,7 @@ onMounted(() => {
 .data-panel {
   width: 100%;
   max-width: 1200px;
-  padding: 40px;
+  padding: 20px 40px;
 }
 
 /* 表格网格 */
@@ -618,40 +542,30 @@ onMounted(() => {
 
 .table-btn {
   position: relative;
-  padding: 20px 16px;
-  background: #2d2d30;
+  padding: 24px 20px;
+  background: linear-gradient(135deg, #2d2d30 0%, #252526 100%);
   border: 2px solid #3e3e42;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
   text-align: left;
-  min-height: 120px;
+  min-height: 110px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .table-btn:hover {
-  background: #3e3e42;
+  background: linear-gradient(135deg, #3e3e42 0%, #2d2d30 100%);
   border-color: #4fc3f7;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(79, 195, 247, 0.3);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(79, 195, 247, 0.4);
 }
 
-.table-btn-index {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
-  background: rgba(79, 195, 247, 0.2);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: #4fc3f7;
+.table-btn:active {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(79, 195, 247, 0.3);
 }
 
 .table-btn-name {

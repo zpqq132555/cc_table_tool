@@ -148,3 +148,83 @@ const loaded = deserializeDataSource(arrayBuffer);
 1. 在 `index.ts` 的 `IEditorApi` 接口添加方法
 2. 在 `standalone.ts`、`cocos.ts`、`electron.ts` 分别实现
 3. 若需 Electron IPC，同步更新 `electron/preload.js` 和 `electron/main.js`
+
+## 编码规范
+
+### 文件组织
+
+- **单个类/文件行数限制**：单个类或文件尽量不超过 **500 行**
+  - 超过 500 行时，考虑拆分为多个模块
+  - 示例：`data-manager.ts` (928行) → 拆分为 5 个文件（`types.ts`, `field-factory.ts`, `import-helper.ts`, `serializer.ts`, `data-manager.ts`）
+
+### 命名规范
+
+- **函数/方法命名**：使用 **驼峰命名法 (camelCase)**
+  ```typescript
+  // ✅ 正确
+  function handleCreateData() {}
+  async function importTableFromJson() {}
+  
+  // ❌ 错误
+  function handle_create_data() {}
+  function ImportTableFromJson() {}
+  ```
+
+- **文件夹命名**：使用 **驼峰命名法 (camelCase)**
+  ```
+  ✅ 正确：
+  src/panels/vueEditor/
+  src/utils/
+  src/components/
+  
+  ❌ 错误：
+  src/Panels/VueEditor/
+  src/Utils/
+  src/Components/
+  ```
+
+- **文件命名**：使用 **大驼峰命名 (PascalCase)**
+  ```
+  ✅ 正确（优先推荐）：
+  DataManager.ts
+  FieldFactory.ts
+  ImportHelper.ts
+  
+  ❌ 错误：
+  data-manager.ts
+  field-factory.ts
+  import-helper.ts
+  DataManager.ts
+  FieldFactory.ts
+  ```
+
+- **类命名**：使用 **大驼峰命名法 (PascalCase)**
+  ```typescript
+  // ✅ 正确
+  class DataManager {}
+  class FieldFactory {}
+  
+  // ❌ 错误
+  class dataManager {}
+  class field_factory {}
+  ```
+
+- **常量命名**：使用 **全大写 + 下划线**
+  ```typescript
+  // ✅ 正确
+  const MAGIC_NUMBER = 0x5442_4C45;
+  const ENCRYPT_KEY = 'table_tool_2024';
+  
+  // ❌ 错误
+  const magicNumber = 0x5442_4C45;
+  const encryptKey = 'table_tool_2024';
+  ```
+
+### 代码拆分原则
+
+当单个文件行数超过限制时，按以下原则拆分：
+
+1. **类型定义** → 独立的 `types.ts`
+2. **工具函数** → 独立的 `utils/` 或 `helpers/`
+3. **业务逻辑** → 按功能拆分（如 `serializer.ts`, `importer.ts`）
+4. **保持职责单一**：每个文件只负责一个明确的功能模块

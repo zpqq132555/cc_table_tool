@@ -1,4 +1,4 @@
-import vue2 from '@vitejs/plugin-vue2';
+import vue from '@vitejs/plugin-vue';
 import path from 'path';
 import { defineConfig } from 'vite';
 
@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
     const outDir = customOutDir || defaultOutDir;
     
     return {
-        plugins: [vue2()],
+        plugins: [vue()],
         
         resolve: {
             alias: {

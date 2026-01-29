@@ -58,6 +58,17 @@ class ExtensionsToolsPlugin extends BasePlugin {
         }
     }
 
+    /** 读取文本文件 */
+    @MessageMethod
+    async readFile(filePath: string): Promise<string | null> {
+        try {
+            return fs.readFileSync(filePath, 'utf-8');
+        } catch (err) {
+            this.error(`读取文件失败: ${filePath}`, err);
+            return null;
+        }
+    }
+
     /** 读取二进制文件 */
     @MessageMethod
     async readBinaryFile(filePath: string): Promise<ArrayBuffer | null> {
@@ -100,6 +111,26 @@ class ExtensionsToolsPlugin extends BasePlugin {
             return result.filePaths[0];
         } catch (err) {
             this.error('选择文件失败', err);
+            return null;
+        }
+    }
+
+    /** 选择目录 */
+    @MessageMethod
+    async selectDirectory(options?: { title?: string }): Promise<string | null> {
+        try {
+            const result = await (Editor as any).Dialog.select({
+                title: options?.title || '选择目录',
+                type: 'directory',
+            });
+
+            if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+                return null;
+            }
+
+            return result.filePaths[0];
+        } catch (err) {
+            this.error('选择目录失败', err);
             return null;
         }
     }

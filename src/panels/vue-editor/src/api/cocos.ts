@@ -69,8 +69,16 @@ export const cocosApi: IEditorApi = {
         return sendToMain('selectFile', options);
     },
     
+    async selectDirectory(options) {
+        return sendToMain('selectDirectory', options);
+    },
+    
     async selectSavePath(options) {
         return sendToMain('selectSavePath', options);
+    },
+    
+    async readFile(path: string) {
+        return sendToMain('readFile', path);
     },
     
     async exists(path: string) {
