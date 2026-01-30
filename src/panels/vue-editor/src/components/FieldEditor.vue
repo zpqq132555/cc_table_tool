@@ -338,9 +338,97 @@
               </button>
               <button class="btn-icon btn-delete-option" @click="removeProperty(Number(index))">🗑️</button>
             </div>
+            
+            <!-- 嵌套结构预览 -->
             <div v-if="prop.type === 'array' || prop.type === 'object'" class="property-nested-preview">
               <span v-if="prop.nestedDef">{{ getNestedPreview(prop.nestedDef) }}</span>
               <span v-else class="nested-empty">点击 ⚙️ 配置嵌套结构</span>
+            </div>
+            
+            <!-- 属性约束配置 - 根据类型直接显示 -->
+            <div v-if="prop.type === 'number' || prop.type === 'string' || prop.type === 'boolean' || prop.type === 'select' || prop.type === 'reward'" class="property-constraints">
+              <!-- 数字类型约束 -->
+              <template v-if="prop.type === 'number'">
+                <div class="constraint-row">
+                  <label>默认值</label>
+                  <input type="number" class="form-input-small" v-model.number="prop.constraints.defaultValue" />
+                </div>
+                <div class="constraint-row">
+                  <label>最小值</label>
+                  <input type="number" class="form-input-small" v-model.number="prop.constraints.min" />
+                </div>
+                <div class="constraint-row">
+                  <label>最大值</label>
+                  <input type="number" class="form-input-small" v-model.number="prop.constraints.max" />
+                </div>
+                <div class="constraint-row">
+                  <label>步长</label>
+                  <input type="number" class="form-input-small" v-model.number="prop.constraints.step" />
+                </div>
+              </template>
+              
+              <!-- 文本类型约束 -->
+              <template v-if="prop.type === 'string'">
+                <div class="constraint-row">
+                  <label>默认值</label>
+                  <input type="text" class="form-input-small" v-model="prop.constraints.defaultValue" />
+                </div>
+                <div class="constraint-row">
+                  <label>最大长度</label>
+                  <input type="number" class="form-input-small" v-model.number="prop.constraints.maxLength" />
+                </div>
+              </template>
+              
+              <!-- 布尔类型约束 -->
+              <template v-if="prop.type === 'boolean'">
+                <div class="constraint-row">
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="prop.constraints.defaultValue" />
+                    <span>默认开启</span>
+                  </label>
+                </div>
+              </template>
+              
+              <!-- 下拉类型约束 -->
+              <template v-if="prop.type === 'select'">
+                <div class="constraint-row">
+                  <label>默认值</label>
+                  <select class="form-select-small" v-model="prop.constraints.defaultValue">
+                    <option v-for="(opt, i) in prop.constraints.options" :key="i" :value="opt.value">
+                      {{ opt.label }}
+                    </option>
+                    <option v-if="!prop.constraints.options || prop.constraints.options.length === 0" value="" disabled>
+                      -- 请先添加选项 --
+                    </option>
+                  </select>
+                </div>
+                <div class="constraint-options">
+                  <div class="constraint-options-header">
+                    <span>选项列表 <span v-if="!prop.constraints.options || prop.constraints.options.length === 0" class="required">*</span></span>
+                    <button type="button" class="btn-tiny" @click="addPropertyOption(Number(index))">➕</button>
+                  </div>
+                  <div v-for="(opt, optIdx) in prop.constraints.options" :key="optIdx" class="constraint-option-item">
+                    <input type="text" class="form-input-tiny" v-model="opt.label" placeholder="显示" />
+                    <input type="text" class="form-input-tiny" v-model="opt.value" placeholder="值" />
+                    <button type="button" class="btn-icon-tiny" @click="removePropertyOption(Number(index), Number(optIdx))">✕</button>
+                  </div>
+                  <div v-if="!prop.constraints.options || prop.constraints.options.length === 0" class="options-empty options-required">
+                    ⚠️ 必须至少添加一个选项
+                  </div>
+                </div>
+              </template>
+              
+              <!-- 奖励类型约束 -->
+              <template v-if="prop.type === 'reward'">
+                <div class="constraint-row">
+                  <label>默认ID</label>
+                  <input type="text" class="form-input-small" v-model="prop.constraints.defaultValue.id" />
+                </div>
+                <div class="constraint-row">
+                  <label>默认数量</label>
+                  <input type="number" class="form-input-small" v-model.number="prop.constraints.defaultValue.count" min="1" />
+                </div>
+              </template>
             </div>
           </div>
           <div v-if="typeConfig.properties.length === 0" class="options-empty">
@@ -470,7 +558,13 @@ const typeConfig = reactive<any>({
     options: [] as { label: string; value: string }[],
   },
   // object
-  properties: [] as { key: string; name: string; type: FieldType; nestedDef?: IFieldDef }[],
+  properties: [] as { 
+    key: string; 
+    name: string; 
+    type: FieldType; 
+    nestedDef?: IFieldDef;
+    constraints?: any;
+  }[],
 });
 
 // 嵌套编辑对话框状态
@@ -578,7 +672,13 @@ function validateRewardCount() {
 
 // 添加属性
 function addProperty() {
-  typeConfig.properties.push({ key: '', name: '', type: 'string', nestedDef: null });
+  typeConfig.properties.push({ 
+    key: '', 
+    name: '', 
+    type: 'string', 
+    nestedDef: null,
+    constraints: { defaultValue: '' },
+  });
 }
 
 // 删除属性
@@ -722,7 +822,143 @@ function handlePropertyTypeChange(index: number) {
   const prop = typeConfig.properties[index];
   if (prop.type !== 'array' && prop.type !== 'object') {
     prop.nestedDef = null;
+    // 初始化约束配置
+    resetPropertyConstraints(prop);
+  } else {
+    // 重置约束
+    prop.constraints = {};
   }
+}
+
+// 重置属性约束
+function resetPropertyConstraints(prop: any) {
+  switch (prop.type) {
+    case 'string':
+      prop.constraints = {
+        defaultValue: '',
+        maxLength: undefined,
+      };
+      break;
+    case 'number':
+      prop.constraints = {
+        defaultValue: 0,
+        min: undefined,
+        max: undefined,
+        step: undefined,
+      };
+      break;
+    case 'boolean':
+      prop.constraints = {
+        defaultValue: false,
+      };
+      break;
+    case 'select':
+      prop.constraints = {
+        defaultValue: '',
+        options: [],
+      };
+      break;
+    case 'reward':
+      prop.constraints = {
+        defaultValue: { id: '', count: 1 },
+      };
+      break;
+    default:
+      prop.constraints = {};
+  }
+}
+
+// 判断是否应该显示属性约束
+// 添加属性选项（用于对象属性是下拉类型）
+function addPropertyOption(propIndex: number) {
+  const prop = typeConfig.properties[propIndex];
+  if (!prop.constraints) {
+    prop.constraints = {};
+  }
+  if (!prop.constraints.options) {
+    prop.constraints.options = [];
+  }
+  prop.constraints.options.push({ label: '', value: '' });
+  
+  // 如果是第一个选项且没有默认值，自动设置为默认值
+  if (prop.constraints.options.length === 1 && !prop.constraints.defaultValue) {
+    watch(() => prop.constraints.options[0].value, (newValue) => {
+      if (!prop.constraints.defaultValue && newValue) {
+        prop.constraints.defaultValue = newValue;
+      }
+    });
+  }
+}
+
+// 删除属性选项
+function removePropertyOption(propIndex: number, optionIndex: number) {
+  const prop = typeConfig.properties[propIndex];
+  const removedOption = prop.constraints.options[optionIndex];
+  prop.constraints.options.splice(optionIndex, 1);
+  
+  // 如果删除的是当前选中的默认值，切换到第一个选项
+  if (prop.constraints.defaultValue === removedOption?.value 
+      && prop.constraints.options.length > 0) {
+    prop.constraints.defaultValue = prop.constraints.options[0].value;
+  }
+}
+
+// 应用属性约束到字段定义
+function applyPropertyConstraints(prop: any): any {
+  if (!prop.constraints || Object.keys(prop.constraints).length === 0) {
+    return {};
+  }
+  
+  const result: any = {};
+  
+  switch (prop.type) {
+    case 'string':
+      if (prop.constraints.defaultValue !== undefined && prop.constraints.defaultValue !== '') {
+        result.defaultValue = prop.constraints.defaultValue;
+      }
+      if (prop.constraints.maxLength !== undefined) {
+        result.maxLength = prop.constraints.maxLength;
+      }
+      break;
+      
+    case 'number':
+      if (prop.constraints.defaultValue !== undefined) {
+        result.defaultValue = prop.constraints.defaultValue;
+      }
+      if (prop.constraints.min !== undefined) {
+        result.min = prop.constraints.min;
+      }
+      if (prop.constraints.max !== undefined) {
+        result.max = prop.constraints.max;
+      }
+      if (prop.constraints.step !== undefined) {
+        result.step = prop.constraints.step;
+      }
+      break;
+      
+    case 'boolean':
+      if (prop.constraints.defaultValue !== undefined) {
+        result.defaultValue = prop.constraints.defaultValue;
+      }
+      break;
+      
+    case 'select':
+      if (prop.constraints.options && prop.constraints.options.length > 0) {
+        result.options = prop.constraints.options;
+      }
+      if (prop.constraints.defaultValue !== undefined && prop.constraints.defaultValue !== '') {
+        result.defaultValue = prop.constraints.defaultValue;
+      }
+      break;
+      
+    case 'reward':
+      if (prop.constraints.defaultValue) {
+        result.defaultValue = { ...prop.constraints.defaultValue };
+      }
+      break;
+  }
+  
+  return result;
 }
 
 // 打开元素编辑器（数组的元素类型）
@@ -912,6 +1148,18 @@ function handleSave() {
     }
   }
 
+  // 验证对象属性类型为下拉时必须有选项
+  if (form.type === 'object') {
+    for (const prop of typeConfig.properties) {
+      if (prop.type === 'select') {
+        if (!prop.constraints?.options || prop.constraints.options.length === 0) {
+          alert(`对象属性 "${prop.name || prop.key}" 的类型为下拉时，至少需要一个选项`);
+          return;
+        }
+      }
+    }
+  }
+
   let field: IFieldDef;
 
   switch (form.type) {
@@ -1015,7 +1263,13 @@ function handleSave() {
             name: p.name,
           };
         } else {
-          return { type: p.type, key: p.key, name: p.name } as IFieldDef;
+          // 基本类型属性，应用约束
+          return { 
+            type: p.type, 
+            key: p.key, 
+            name: p.name,
+            ...applyPropertyConstraints(p)
+          } as IFieldDef;
         }
       });
       
@@ -1254,6 +1508,15 @@ function handleSave() {
   border-radius: 4px;
   font-size: 12px;
   color: #4fc3f7;
+}
+
+/* 属性约束配置 */
+.property-constraints {
+  margin-top: 8px;
+  padding: 12px;
+  background: rgba(79, 195, 247, 0.05);
+  border: 1px solid rgba(79, 195, 247, 0.2);
+  border-radius: 6px;
 }
 
 /* 嵌套配置区域 */

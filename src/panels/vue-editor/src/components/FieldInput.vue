@@ -131,34 +131,11 @@
     />
 
     <!-- 对象字段 -->
-    <div v-else-if="field.type === 'object'" class="object-input">
-      <div class="object-preview" @click="showObjectEditor = true">
-        <span>对象 ({{ Object.keys(objectValue).length }} 个属性)</span>
-        <button type="button" class="btn-edit-object">编辑</button>
-      </div>
-      
-      <!-- 简单对象编辑对话框 -->
-      <div v-if="showObjectEditor" class="mini-dialog-overlay" @click.self="showObjectEditor = false">
-        <div class="mini-dialog">
-          <div class="mini-dialog-header">
-            <span>编辑对象</span>
-            <button @click="showObjectEditor = false">✕</button>
-          </div>
-          <div class="mini-dialog-content">
-            <textarea
-              v-model="objectJson"
-              class="form-textarea"
-              rows="10"
-              placeholder='输入 JSON 对象，例如：{"key": "value"}'
-            ></textarea>
-          </div>
-          <div class="mini-dialog-footer">
-            <button class="btn" @click="showObjectEditor = false">取消</button>
-            <button class="btn btn-primary" @click="saveObjectJson">确定</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ObjectEditor
+      v-else-if="field.type === 'object'"
+      v-model="inputValue"
+      :field="field"
+    />
 
     <!-- 未知类型 -->
     <div v-else class="unknown-type">
@@ -171,6 +148,7 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import type { IFieldDef } from '../utils/types';
 import ArrayEditor from './ArrayEditor.vue';
+import ObjectEditor from './ObjectEditor.vue';
 
 // Props
 const props = defineProps<{
@@ -184,9 +162,7 @@ const emit = defineEmits<{
 }>();
 
 // 状态
-const showObjectEditor = ref(false);
 const showSelectDropdown = ref(false);
-const objectJson = ref('');
 const highlightedIndex = ref(-1);
 const selectBlurTimeout = ref<number | null>(null);
 
@@ -441,34 +417,6 @@ function handleRewardCountKeydown(e: KeyboardEvent) {
   } else if (e.key === 'ArrowDown') {
     e.preventDefault();
     decrementRewardCount();
-  }
-}
-
-const objectValue = computed(() => {
-  return typeof props.modelValue === 'object' && props.modelValue !== null && !Array.isArray(props.modelValue)
-    ? props.modelValue
-    : {};
-});
-
-// 监听对象值变化，更新 JSON 字符串
-watch(() => props.modelValue, (newVal) => {
-  if (props.field.type === 'object' && typeof newVal === 'object') {
-    objectJson.value = JSON.stringify(newVal, null, 2);
-  }
-}, { immediate: true });
-
-// 保存对象 JSON
-function saveObjectJson() {
-  try {
-    const parsed = JSON.parse(objectJson.value);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      alert('请输入有效的 JSON 对象');
-      return;
-    }
-    emit('update:modelValue', parsed);
-    showObjectEditor.value = false;
-  } catch (err) {
-    alert('JSON 格式错误: ' + (err as Error).message);
   }
 }
 
@@ -772,39 +720,6 @@ function getSelectLabel(value: any): string {
   color: #888;
   font-size: 16px;
   flex-shrink: 0;
-}
-
-.object-input {
-  position: relative;
-}
-
-.object-preview {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: #1e1e1e;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.object-preview:hover {
-  border-color: #007acc;
-}
-
-.btn-edit-object {
-  padding: 4px 12px;
-  background: #007acc;
-  color: white;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.btn-edit-object:hover {
-  background: #005a9e;
 }
 
 .mini-dialog-overlay {
