@@ -140,30 +140,47 @@ export abstract class BasePlugin implements IPluginMain {
 export function createPluginMain(plugin: BasePlugin): any {
     const version = VersionDetector.detect();
 
-    // 绑定 methods/messages 中的函数到 plugin 实例
-    const bindMethods = (obj: Record<string, any> | undefined) => {
-        if (!obj) return {};
+    // 收集所有标记了 @MessageMethod 的方法
+    const collectMethods = (): Record<string, any> => {
+        const methods: Record<string, any> = {};
+        let proto = Object.getPrototypeOf(plugin);
+        
+        // 遍历原型链收集所有方法
+        while (proto && proto !== Object.prototype) {
+            // 从原型的 methods 或 messages 中收集
+            if (proto.methods) {
+                Object.assign(methods, proto.methods);
+            }
+            if (proto.messages) {
+                Object.assign(methods, proto.messages);
+            }
+            proto = Object.getPrototypeOf(proto);
+        }
+        
+        // 绑定到实例
         const bound: Record<string, any> = {};
-        for (const key of Object.keys(obj)) {
-            const fn = obj[key];
+        for (const key of Object.keys(methods)) {
+            const fn = methods[key];
             bound[key] = typeof fn === 'function' ? fn.bind(plugin) : fn;
         }
         return bound;
     };
+
+    const allMethods = collectMethods();
 
     if (version === CocosVersion.V2) {
         // V2.x 格式: module.exports = { load, unload, messages }
         return {
             load: () => plugin.load(),
             unload: () => plugin.unload(),
-            messages: bindMethods(plugin.messages),
+            messages: allMethods,
         };
     } else if (version === CocosVersion.V3) {
         // V3.x 格式: export { load, unload, methods }
         return {
             load: () => plugin.load(),
             unload: () => plugin.unload(),
-            methods: bindMethods(plugin.methods),
+            methods: allMethods,
         };
     }
 

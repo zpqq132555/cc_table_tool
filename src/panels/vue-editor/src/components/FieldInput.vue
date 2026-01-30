@@ -10,29 +10,57 @@
     />
 
     <!-- 数字字段 -->
-    <input
-      v-else-if="field.type === 'number'"
-      v-model.number="inputValue"
-      type="number"
-      class="form-input"
-      :min="(field as any).min"
-      :max="(field as any).max"
-      :step="(field as any).step"
-      :placeholder="field.desc || `请输入${field.name}`"
-    />
+    <div v-else-if="field.type === 'number'" class="number-input-wrapper">
+      <button 
+        type="button" 
+        class="number-btn number-btn-minus"
+        @click="decrementNumber"
+        tabindex="-1"
+      >−</button>
+      <input
+        ref="numberInputRef"
+        v-model.number="inputValue"
+        type="number"
+        class="form-input number-input"
+        :min="(field as any).min"
+        :max="(field as any).max"
+        :step="(field as any).step"
+        :placeholder="field.desc || `请输入${field.name}`"
+        @keydown="handleNumberKeydown"
+      />
+      <button 
+        type="button" 
+        class="number-btn number-btn-plus"
+        @click="incrementNumber"
+        tabindex="-1"
+      >+</button>
+    </div>
 
     <!-- 布尔字段 -->
-    <label v-else-if="field.type === 'boolean'" class="checkbox-label">
-      <input
-        v-model="inputValue"
-        type="checkbox"
-        class="form-checkbox"
-      />
-      <span>{{ inputValue ? '是' : '否' }}</span>
-    </label>
+    <div 
+      v-else-if="field.type === 'boolean'" 
+      class="checkbox-wrapper"
+      tabindex="0"
+      ref="booleanRef"
+      @keydown="handleBooleanKeydown"
+      @click="toggleBoolean"
+    >
+      <div class="checkbox-box" :class="{ 'is-checked': inputValue }">
+        <span class="checkbox-icon">{{ inputValue ? '✓' : '' }}</span>
+      </div>
+      <span class="checkbox-text">{{ inputValue ? '是' : '否' }}</span>
+    </div>
 
     <!-- 下拉选择 -->
-    <div v-else-if="field.type === 'select'" class="custom-select">
+    <div 
+      v-else-if="field.type === 'select'" 
+      class="custom-select"
+      ref="selectRef"
+      tabindex="0"
+      @keydown="handleSelectKeydown"
+      @focus="handleSelectFocus"
+      @blur="handleSelectBlur"
+    >
       <div 
         class="select-trigger" 
         @click="toggleSelectDropdown"
@@ -46,17 +74,25 @@
       <div v-if="showSelectDropdown" class="select-dropdown">
         <div 
           class="select-option"
-          :class="{ 'is-selected': inputValue === '' }"
+          :class="{ 
+            'is-selected': inputValue === '', 
+            'is-highlighted': highlightedIndex === 0 
+          }"
           @click="handleSelectOption('')"
+          @mouseenter="highlightedIndex = 0"
         >
           请选择
         </div>
         <div 
-          v-for="opt in (field as any).options"
+          v-for="(opt, idx) in (field as any).options"
           :key="opt.value"
           class="select-option"
-          :class="{ 'is-selected': inputValue === opt.value }"
+          :class="{ 
+            'is-selected': inputValue === opt.value,
+            'is-highlighted': highlightedIndex === Number(idx) + 1
+          }"
           @click="handleSelectOption(opt.value)"
+          @mouseenter="highlightedIndex = Number(idx) + 1"
         >
           {{ opt.label }}
         </div>
@@ -73,14 +109,29 @@
         placeholder="物品ID"
       />
       <span class="reward-separator">×</span>
-      <input
-        :value="rewardCount"
-        @input="updateRewardCount($event)"
-        type="number"
-        class="form-input reward-count"
-        placeholder="数量"
-        min="0"
-      />
+      <div class="number-input-wrapper reward-count-wrapper">
+        <button 
+          type="button" 
+          class="number-btn number-btn-minus"
+          @click="decrementRewardCount"
+          tabindex="-1"
+        >−</button>
+        <input
+          :value="rewardCount"
+          @input="updateRewardCount($event)"
+          @keydown="handleRewardCountKeydown"
+          type="number"
+          class="form-input number-input"
+          placeholder="数量"
+          min="0"
+        />
+        <button 
+          type="button" 
+          class="number-btn number-btn-plus"
+          @click="incrementRewardCount"
+          tabindex="-1"
+        >+</button>
+      </div>
     </div>
 
     <!-- 数组字段 -->
@@ -151,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import type { IFieldDef } from '../utils/types';
 
 // Props
@@ -171,6 +222,13 @@ const showObjectEditor = ref(false);
 const showSelectDropdown = ref(false);
 const arrayJson = ref('');
 const objectJson = ref('');
+const highlightedIndex = ref(-1);
+const selectBlurTimeout = ref<number | null>(null);
+
+// Refs
+const numberInputRef = ref<HTMLInputElement | null>(null);
+const booleanRef = ref<HTMLDivElement | null>(null);
+const selectRef = ref<HTMLDivElement | null>(null);
 
 // 计算属性
 const inputValue = computed({
@@ -181,6 +239,199 @@ const inputValue = computed({
     emit('update:modelValue', value);
   }
 });
+
+// ==================== 精度修正工具函数 ====================
+/**
+ * 计算数值的小数位数
+ */
+function getDecimalPlaces(num: number): number {
+  const str = String(num);
+  const decimalIndex = str.indexOf('.');
+  return decimalIndex >= 0 ? str.length - decimalIndex - 1 : 0;
+}
+
+/**
+ * 修正浮点数精度问题
+ * @param value 需要修正的数值
+ * @param step 步长
+ * @param originalValue 原始值（用于保持原始精度）
+ */
+function fixPrecision(value: number, step: number = 1, originalValue: number = 0): number {
+  // 取步长精度和原始值精度中的较大值
+  const stepPrecision = getDecimalPlaces(step);
+  const originalPrecision = getDecimalPlaces(originalValue);
+  const precision = Math.max(stepPrecision, originalPrecision);
+  
+  // 使用 toFixed 修正精度，然后转回数字
+  return Number(value.toFixed(precision));
+}
+
+// ==================== 数字字段处理 ====================
+function getStep(): number {
+  return (props.field as any).step ?? 1;
+}
+
+function getMin(): number | undefined {
+  return (props.field as any).min;
+}
+
+function getMax(): number | undefined {
+  return (props.field as any).max;
+}
+
+function incrementNumber() {
+  const step = getStep();
+  const max = getMax();
+  const original = Number(props.modelValue) || 0;
+  let newValue = fixPrecision(original + step, step, original);
+  
+  if (max !== undefined && newValue > max) {
+    newValue = max;
+  }
+  
+  emit('update:modelValue', newValue);
+}
+
+function decrementNumber() {
+  const step = getStep();
+  const min = getMin();
+  const original = Number(props.modelValue) || 0;
+  let newValue = fixPrecision(original - step, step, original);
+  
+  if (min !== undefined && newValue < min) {
+    newValue = min;
+  }
+  
+  emit('update:modelValue', newValue);
+}
+
+function handleNumberKeydown(e: KeyboardEvent) {
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    incrementNumber();
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    decrementNumber();
+  }
+}
+
+// ==================== 布尔字段处理 ====================
+function toggleBoolean() {
+  emit('update:modelValue', !props.modelValue);
+}
+
+function handleBooleanKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    toggleBoolean();
+  }
+}
+
+// ==================== 下拉选择处理 ====================
+function getSelectOptions(): Array<{ value: any; label: string }> {
+  const field = props.field as any;
+  return field.options || [];
+}
+
+function getTotalOptionsCount(): number {
+  return getSelectOptions().length + 1; // +1 for "请选择" option
+}
+
+function handleSelectFocus() {
+  // 清除延迟关闭
+  if (selectBlurTimeout.value) {
+    clearTimeout(selectBlurTimeout.value);
+    selectBlurTimeout.value = null;
+  }
+  
+  if (!showSelectDropdown.value) {
+    showSelectDropdown.value = true;
+    // 设置当前选中项为高亮
+    const options = getSelectOptions();
+    const currentIndex = options.findIndex(opt => opt.value === props.modelValue);
+    highlightedIndex.value = currentIndex >= 0 ? currentIndex + 1 : 0;
+  }
+}
+
+function handleSelectBlur() {
+  // 延迟关闭，允许点击选项
+  selectBlurTimeout.value = window.setTimeout(() => {
+    showSelectDropdown.value = false;
+    highlightedIndex.value = -1;
+  }, 150);
+}
+
+function handleSelectKeydown(e: KeyboardEvent) {
+  const totalOptions = getTotalOptionsCount();
+  
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault();
+      if (!showSelectDropdown.value) {
+        showSelectDropdown.value = true;
+        highlightedIndex.value = 0;
+      } else {
+        highlightedIndex.value = (highlightedIndex.value + 1) % totalOptions;
+      }
+      scrollToHighlighted();
+      break;
+      
+    case 'ArrowUp':
+      e.preventDefault();
+      if (!showSelectDropdown.value) {
+        showSelectDropdown.value = true;
+        highlightedIndex.value = totalOptions - 1;
+      } else {
+        highlightedIndex.value = highlightedIndex.value <= 0 
+          ? totalOptions - 1 
+          : highlightedIndex.value - 1;
+      }
+      scrollToHighlighted();
+      break;
+      
+    case 'Enter':
+      e.preventDefault();
+      if (showSelectDropdown.value && highlightedIndex.value >= 0) {
+        const options = getSelectOptions();
+        if (highlightedIndex.value === 0) {
+          handleSelectOption('');
+        } else {
+          const option = options[highlightedIndex.value - 1];
+          if (option) {
+            handleSelectOption(option.value);
+          }
+        }
+      } else {
+        showSelectDropdown.value = true;
+        highlightedIndex.value = 0;
+      }
+      break;
+      
+    case 'Escape':
+      e.preventDefault();
+      showSelectDropdown.value = false;
+      highlightedIndex.value = -1;
+      break;
+      
+    case ' ':
+      e.preventDefault();
+      if (!showSelectDropdown.value) {
+        showSelectDropdown.value = true;
+        highlightedIndex.value = 0;
+      }
+      break;
+  }
+}
+
+function scrollToHighlighted() {
+  nextTick(() => {
+    const dropdown = selectRef.value?.querySelector('.select-dropdown');
+    const highlighted = dropdown?.querySelector('.is-highlighted');
+    if (highlighted && dropdown) {
+      highlighted.scrollIntoView({ block: 'nearest' });
+    }
+  });
+}
 
 // 奖励字段的单独处理
 const rewardId = computed(() => {
@@ -201,8 +452,35 @@ function updateRewardId(e: Event) {
 
 function updateRewardCount(e: Event) {
   const target = e.target as HTMLInputElement;
-  const current = props.modelValue || { id: '', count: 0 };
-  emit('update:modelValue', { ...current, count: Number(target.value) || 0 });
+  const current = props.modelValue || { id: '', count: 1 };
+  emit('update:modelValue', { ...current, count: Number(target.value) || 1 });
+}
+
+function incrementRewardCount() {
+  const current = props.modelValue || { id: '', count: 1 };
+  const step = 1; // 奖励数量默认步长为 1
+  const original = Number(current.count) || 1;
+  const newCount = fixPrecision(original + step, step, original);
+  emit('update:modelValue', { ...current, count: newCount });
+}
+
+function decrementRewardCount() {
+  const current = props.modelValue || { id: '', count: 1 };
+  const step = 1;
+  const original = Number(current.count) || 1;
+  let newCount = fixPrecision(original - step, step, original);
+  if (newCount < 1) newCount = 1; // 数量不能为负
+  emit('update:modelValue', { ...current, count: newCount });
+}
+
+function handleRewardCountKeydown(e: KeyboardEvent) {
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    incrementRewardCount();
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    decrementRewardCount();
+  }
 }
 
 const arrayValue = computed(() => {
@@ -292,6 +570,111 @@ function getSelectLabel(value: any): string {
   border-color: #007acc;
 }
 
+/* 数字输入框容器 */
+.number-input-wrapper {
+  display: flex;
+  align-items: stretch;
+}
+
+.number-input-wrapper .number-input {
+  flex: 1;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  text-align: center;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.number-input-wrapper .number-input::-webkit-inner-spin-button,
+.number-input-wrapper .number-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.number-btn {
+  width: 32px;
+  background: #2d2d30;
+  border: 1px solid #3e3e42;
+  color: #cccccc;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.number-btn:hover {
+  background: #3e3e42;
+  color: #ffffff;
+}
+
+.number-btn:active {
+  background: #007acc;
+}
+
+.number-btn-minus {
+  border-radius: 4px 0 0 4px;
+}
+
+.number-btn-plus {
+  border-radius: 0 4px 4px 0;
+}
+
+/* 布尔复选框 - 可聚焦 */
+.checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.checkbox-wrapper:focus {
+  border-color: #007acc;
+  background: rgba(0, 122, 204, 0.1);
+}
+
+.checkbox-wrapper:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.checkbox-box {
+  width: 20px;
+  height: 20px;
+  background: #1e1e1e;
+  border: 2px solid #3e3e42;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.checkbox-box.is-checked {
+  background: #007acc;
+  border-color: #007acc;
+}
+
+.checkbox-icon {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.checkbox-text {
+  color: #cccccc;
+  font-size: 14px;
+}
+
 .form-textarea {
   width: 100%;
   padding: 8px 12px;
@@ -309,24 +692,15 @@ function getSelectLabel(value: any): string {
   border-color: #007acc;
 }
 
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.form-checkbox {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
 /* 自定义下拉框 */
 .custom-select {
   position: relative;
   width: 100%;
+  outline: none;
+}
+
+.custom-select:focus .select-trigger {
+  border-color: #007acc;
 }
 
 .select-trigger {
@@ -396,9 +770,19 @@ function getSelectLabel(value: any): string {
   background: #2d2d30;
 }
 
+.select-option.is-highlighted {
+  background: #094771;
+  color: #ffffff;
+}
+
 .select-option.is-selected {
   background: rgba(0, 122, 204, 0.2);
   color: #4fc3f7;
+}
+
+.select-option.is-highlighted.is-selected {
+  background: #094771;
+  color: #ffffff;
 }
 
 .form-select {
@@ -435,13 +819,19 @@ function getSelectLabel(value: any): string {
   flex: 1;
 }
 
-.reward-input .reward-count {
-  width: 100px;
+.reward-input .reward-count-wrapper {
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.reward-input .reward-count-wrapper .number-input {
+  min-width: 0;
 }
 
 .reward-separator {
   color: #888;
   font-size: 16px;
+  flex-shrink: 0;
 }
 
 .array-input,

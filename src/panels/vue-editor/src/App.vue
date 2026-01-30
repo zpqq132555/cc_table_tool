@@ -2,17 +2,17 @@
   <div class="app-container">
     <!-- 配置管理页面（完全独立） -->
     <template v-if="currentView === 'config'">
-      <ConfigManage 
-        @back="currentView = 'main'" 
+      <ConfigManage
+        @back="currentView = 'main'"
         @add="handleAddTable"
         @edit="handleEditTable"
         @delete="handleDeleteTable"
       />
     </template>
-    
+
     <!-- 表格编辑器页面 -->
     <template v-else-if="currentView === 'table-editor'">
-      <TableEditor 
+      <TableEditor
         :tableKey="editingTableKey"
         @back="currentView = 'config'"
         @saved="handleTableSaved"
@@ -21,7 +21,7 @@
 
     <!-- 数据编辑页面 -->
     <template v-else-if="currentView === 'data-editor'">
-      <DataEditor 
+      <DataEditor
         :tableKey="editingTableKey"
         @back="currentView = 'main'"
         @saved="handleDataSaved"
@@ -30,104 +30,114 @@
 
     <!-- 主页面 -->
     <template v-else>
-    <header class="app-header">
-      <h1>🗂️ Table Tool</h1>
-      <span class="version-badge">{{ platform }}</span>
-      
-      <!-- Cocos 渠道显示配置管理按钮 -->
-      <template v-if="dataManager.isLoaded">
-        <div class="header-spacer"></div>
-        <button class="btn btn-secondary" @click="handleConfigManage">
-          ⚙️ 配置管理
-        </button>
-      </template>
-      
-      <!-- 非 Cocos 渠道显示按钮 -->
-      <template v-if="!isCocos">
-        <div class="header-spacer"></div>
-        <button class="btn btn-primary" @click="handleCreateData">
-          📄 创建数据
-        </button>
-        <button class="btn" @click="handleLoadData">
-          📂 读取数据
-        </button>
-      </template>
-    </header>
+      <header class="app-header">
+        <h1>🗂️ Table Tool</h1>
+        <span class="version-badge">{{ platform }}</span>
 
-    <!-- 数据信息栏 -->
-    <div v-if="dataManager.isLoaded" class="data-info">
-      <div class="info-left">
-        <span class="info-label">📊 表数据管理</span>
-        <span class="info-divider">|</span>
-        <span class="info-item">表数量：<strong>{{ dataManager.tableList.length }}</strong></span>
-        <span class="info-divider">|</span>
-        <span class="info-item">数据大小：<strong>{{ dataManager.dataSize }}</strong> 字节</span>
-      </div>
-      <div class="info-right">
-        <span class="info-path" :title="dataManager.filePath">{{ dataManager.filePath }}</span>
-      </div>
-    </div>
-
-    <main class="app-main">
-      <!-- 加载中 -->
-      <div v-if="loading" class="loading-panel">
-        <div class="loading-spinner"></div>
-        <p>{{ loadingMessage }}</p>
-      </div>
-      
-      <!-- 欢迎页面 -->
-      <div v-else-if="!dataManager.isLoaded" class="welcome-panel">
-        <h2>欢迎使用表格工具</h2>
-        <p>当前运行平台：<strong>{{ platform }}</strong></p>
-        <p v-if="isCocos" class="tip">Cocos 模式下自动加载项目数据...</p>
-        <p v-else class="tip">点击右上角按钮开始创建或读取数据</p>
-      </div>
-      
-      <!-- 数据已加载 -->
-      <div v-else class="data-panel">
-        <!-- 表按钮网格 -->
-        <div v-if="dataManager.tableList.length > 0" class="table-grid">
-          <button
-            v-for="table in dataManager.tableList"
-            :key="table.key"
-            class="table-btn"
-            @click="handleOpenTable(table)"
-            :title="table.desc || table.name"
-          >
-            <div class="table-btn-name">📋{{ table.name }}</div>
-            <div class="table-btn-path" v-if="table.exportPath">{{ table.exportPath }}</div>
+        <!-- Cocos 渠道显示配置管理按钮 -->
+        <template v-if="dataManager.isLoaded">
+          <div class="header-spacer"></div>
+          <button class="btn btn-secondary" @click="handleConfigManage">
+            ⚙️ 配置管理
           </button>
+        </template>
+
+        <!-- 非 Cocos 渠道显示按钮 -->
+        <template v-if="!isCocos">
+          <div class="header-spacer"></div>
+          <button class="btn btn-primary" @click="handleCreateData">
+            📄 创建数据
+          </button>
+          <button class="btn" @click="handleLoadData">📂 读取数据</button>
+        </template>
+      </header>
+
+      <!-- 数据信息栏 -->
+      <div v-if="dataManager.isLoaded" class="data-info">
+        <div class="info-left">
+          <span class="info-label">📊 表数据管理</span>
+          <span class="info-divider">|</span>
+          <span class="info-item"
+            >表数量：<strong>{{ dataManager.tableList.length }}</strong></span
+          >
+          <span class="info-divider">|</span>
+          <span class="info-item"
+            >数据大小：<strong>{{ dataManager.dataSize }}</strong> 字节</span
+          >
         </div>
-        
-        <!-- 空状态 -->
-        <div v-else class="empty-state">
-          <p>📭 暂无表数据</p>
-          <p class="tip">点击"配置管理"按钮创建新表</p>
+        <div class="info-right">
+          <span class="info-path" :title="dataManager.filePath">{{
+            dataManager.filePath
+          }}</span>
         </div>
       </div>
-    </main>
+
+      <main class="app-main">
+        <!-- 加载中 -->
+        <div v-if="loading" class="loading-panel">
+          <div class="loading-spinner"></div>
+          <p>{{ loadingMessage }}</p>
+        </div>
+
+        <!-- 欢迎页面 -->
+        <div v-else-if="!dataManager.isLoaded" class="welcome-panel">
+          <h2>欢迎使用表格工具</h2>
+          <p>
+            当前运行平台：<strong>{{ platform }}</strong>
+          </p>
+          <p v-if="isCocos" class="tip">Cocos 模式下自动加载项目数据...</p>
+          <p v-else class="tip">点击右上角按钮开始创建或读取数据</p>
+        </div>
+
+        <!-- 数据已加载 -->
+        <div v-else class="data-panel">
+          <!-- 表按钮网格 -->
+          <div v-if="dataManager.tableList.length > 0" class="table-grid">
+            <button
+              v-for="table in dataManager.tableList"
+              :key="table.key"
+              class="table-btn"
+              @click="handleOpenTable(table)"
+              :title="table.desc || table.name"
+            >
+              <div class="table-btn-name">📋{{ table.name }}</div>
+              <div class="table-btn-path" v-if="table.exportPath">
+                {{ table.exportPath }}
+              </div>
+            </button>
+          </div>
+
+          <!-- 空状态 -->
+          <div v-else class="empty-state">
+            <p>📭 暂无表数据</p>
+            <p class="tip">点击"配置管理"按钮创建新表</p>
+          </div>
+        </div>
+      </main>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { api, getPlatform } from './api';
-import ConfigManage from './components/ConfigManage.vue';
-import DataEditor from './components/DataEditor.vue';
-import TableEditor from './components/TableEditor.vue';
-import { dataManager } from './utils/dataManager';
+import { computed, onMounted, ref } from "vue";
+import { api, getPlatform } from "./api";
+import ConfigManage from "./components/ConfigManage.vue";
+import DataEditor from "./components/DataEditor.vue";
+import TableEditor from "./components/TableEditor.vue";
+import { dataManager } from "./utils/dataManager";
 
 // 平台信息
 const platform = ref<string>(getPlatform());
-const isCocos = computed(() => platform.value.startsWith('cocos'));
+const isCocos = computed(() => platform.value.startsWith("cocos"));
 
 // 加载状态
 const loading = ref(false);
-const loadingMessage = ref('');
+const loadingMessage = ref("");
 
 // 视图状态
-const currentView = ref<'main' | 'config' | 'table-editor' | 'data-editor'>('main');
+const currentView = ref<"main" | "config" | "table-editor" | "data-editor">(
+  "main",
+);
 
 // 正在编辑的表 key
 const editingTableKey = ref<string | undefined>(undefined);
@@ -136,27 +146,27 @@ const editingTableKey = ref<string | undefined>(undefined);
 async function handleCreateData() {
   try {
     loading.value = true;
-    loadingMessage.value = '正在创建数据文件...';
-    
+    loadingMessage.value = "正在创建数据文件...";
+
     // 选择保存路径
     const savePath = await api.selectSavePath({
-      title: '创建数据文件',
-      defaultName: 'data.table',
-      extensions: ['table']
+      title: "创建数据文件",
+      defaultName: "data.table",
+      extensions: ["table"],
     });
-    
+
     if (!savePath) {
       loading.value = false;
       return;
     }
-    
+
     // 使用数据管理器创建
     await dataManager.create(savePath);
-    
-    console.log('[App] 数据创建成功:', savePath);
+
+    console.log("[App] 数据创建成功:", savePath);
   } catch (err) {
-    console.error('[App] 创建数据失败:', err);
-    alert('创建数据失败: ' + (err as Error).message);
+    console.error("[App] 创建数据失败:", err);
+    alert("创建数据失败: " + (err as Error).message);
   } finally {
     loading.value = false;
   }
@@ -166,26 +176,26 @@ async function handleCreateData() {
 async function handleLoadData() {
   try {
     loading.value = true;
-    loadingMessage.value = '正在读取数据文件...';
-    
+    loadingMessage.value = "正在读取数据文件...";
+
     // 选择文件
     const filePath = await api.selectFile({
-      title: '选择数据文件',
-      extensions: ['table']
+      title: "选择数据文件",
+      extensions: ["table"],
     });
-    
+
     if (!filePath) {
       loading.value = false;
       return;
     }
-    
+
     // 使用数据管理器加载
     await dataManager.load(filePath);
-    
-    console.log('[App] 数据读取成功:', filePath);
+
+    console.log("[App] 数据读取成功:", filePath);
   } catch (err) {
-    console.error('[App] 读取数据失败:', err);
-    alert('读取数据失败: ' + (err as Error).message);
+    console.error("[App] 读取数据失败:", err);
+    alert("读取数据失败: " + (err as Error).message);
   } finally {
     loading.value = false;
   }
@@ -195,70 +205,70 @@ async function handleLoadData() {
 async function handleConfigManage() {
   try {
     if (!dataManager.isLoaded) {
-      alert('请先加载数据！');
+      alert("请先加载数据！");
       return;
     }
-    
-    console.log('[App] 打开配置管理');
-    
+
+    console.log("[App] 打开配置管理");
+
     // 切换到配置管理页面
-    currentView.value = 'config';
+    currentView.value = "config";
   } catch (err) {
-    console.error('[App] 配置管理失败:', err);
-    alert('配置管理失败: ' + (err as Error).message);
+    console.error("[App] 配置管理失败:", err);
+    alert("配置管理失败: " + (err as Error).message);
   }
 }
 
 // ==================== 返回主页 ====================
 function handleBackToMain() {
-  currentView.value = 'main';
+  currentView.value = "main";
 }
 
 // ==================== 新增表 ====================
 function handleAddTable() {
-  console.log('[App] 新增数据表');
+  console.log("[App] 新增数据表");
   editingTableKey.value = undefined;
-  currentView.value = 'table-editor';
+  currentView.value = "table-editor";
 }
 
 // ==================== 编辑表 ====================
 function handleEditTable(table: { key: string }) {
-  console.log('[App] 编辑表:', table);
+  console.log("[App] 编辑表:", table);
   editingTableKey.value = table.key;
-  currentView.value = 'table-editor';
+  currentView.value = "table-editor";
 }
 
 // ==================== 表保存成功 ====================
 function handleTableSaved() {
-  console.log('[App] 表保存成功');
-  currentView.value = 'config';
+  console.log("[App] 表保存成功");
+  currentView.value = "config";
 }
 
 // ==================== 删除表 ====================
 async function handleDeleteTable(table: { key: string; name: string }) {
-  console.log('[App] 删除表:', table);
+  console.log("[App] 删除表:", table);
   // 确认删除
   if (confirm(`确定要删除表 "${table.name}" 吗？\n此操作不可恢复！`)) {
     try {
       await dataManager.deleteTable(table.key);
-      console.log('[App] 表已删除:', table.key);
+      console.log("[App] 表已删除:", table.key);
     } catch (err) {
-      console.error('[App] 删除表失败:', err);
-      alert('删除表失败: ' + (err as Error).message);
+      console.error("[App] 删除表失败:", err);
+      alert("删除表失败: " + (err as Error).message);
     }
   }
 }
 
 // ==================== 打开表 ====================
 function handleOpenTable(table: any) {
-  console.log('[App] 打开表:', table);
+  console.log("[App] 打开表:", table);
   editingTableKey.value = table.key;
-  currentView.value = 'data-editor';
+  currentView.value = "data-editor";
 }
 
 // ==================== 数据保存成功 ====================
 function handleDataSaved() {
-  console.log('[App] 数据保存成功');
+  console.log("[App] 数据保存成功");
   // 保持在数据编辑页面
 }
 
@@ -266,43 +276,64 @@ function handleDataSaved() {
 async function autoLoadCocosData() {
   try {
     loading.value = true;
-    loadingMessage.value = '正在加载项目数据...';
-    
-    // 获取项目路径
-    const projectPath = await api.getProjectPath?.();
-    if (!projectPath) {
-      throw new Error('无法获取项目路径');
+    loadingMessage.value = "正在加载项目数据...";
+
+    // 等待 Editor 对象注入（最多等待 3 秒）
+    let retries = 30;
+    while (retries > 0) {
+      try {
+        const projectPath = await api.getProjectPath?.();
+        if (!projectPath) {
+          throw new Error("projectPath not found");
+        }
+        // if (projectPath) {
+        //   console.log("[App] Editor 对象已就绪，项目路径:", projectPath);
+
+        //   // 构建数据文件路径
+        //   const dataDir = projectPath + "/data";
+        //   const dataFile = dataDir + "/data.table";
+
+        //   console.log("[App] 数据文件:", dataFile);
+
+        //   // 检查目录是否存在
+        //   const dirExists = await api.exists(dataDir);
+        //   if (!dirExists) {
+        //     console.log("[App] 数据目录不存在，创建中...");
+        //     await api.createDirectory(dataDir);
+        //   }
+
+        //   // 检查文件是否存在
+        //   const fileExists = await api.exists(dataFile);
+
+        //   if (fileExists) {
+        //     // 使用数据管理器加载
+        //     await dataManager.load(dataFile);
+        //     console.log("[App] 数据加载成功");
+        //   } else {
+        //     // 使用数据管理器创建
+        //     await dataManager.create(dataFile);
+        //     console.log("[App] 数据创建成功");
+        //   }
+
+        //   break; // 成功后退出循环
+        // }
+      } catch (err: any) {
+        if (err.message.includes("Editor object not found")) {
+          console.log(`[App] 等待 Editor 对象注入... (${retries} 次剩余)`);
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          retries--;
+          continue;
+        }
+        throw err;
+      }
     }
-    
-    // 构建数据文件路径
-    const dataDir = projectPath + '/data';
-    const dataFile = dataDir + '/data.table';
-    
-    console.log('[App] 项目路径:', projectPath);
-    console.log('[App] 数据文件:', dataFile);
-    
-    // 检查目录是否存在
-    const dirExists = await api.exists(dataDir);
-    if (!dirExists) {
-      console.log('[App] 数据目录不存在，创建中...');
-      await api.createDirectory(dataDir);
-    }
-    
-    // 检查文件是否存在
-    const fileExists = await api.exists(dataFile);
-    
-    if (fileExists) {
-      // 使用数据管理器加载
-      await dataManager.load(dataFile);
-      console.log('[App] 数据加载成功');
-    } else {
-      // 使用数据管理器创建
-      await dataManager.create(dataFile);
-      console.log('[App] 数据创建成功');
+
+    if (retries === 0) {
+      throw new Error("等待 Editor 对象超时，请刷新面板重试");
     }
   } catch (err) {
-    console.error('[App] 自动加载失败:', err);
-    alert('自动加载数据失败: ' + (err as Error).message);
+    console.error("[App] 自动加载失败:", err);
+    alert("自动加载数据失败: " + (err as Error).message);
   } finally {
     loading.value = false;
   }
@@ -310,8 +341,8 @@ async function autoLoadCocosData() {
 
 // ==================== 初始化 ====================
 onMounted(() => {
-  console.log('[App] 当前平台:', platform.value);
-  
+  console.log("[App] 当前平台:", platform.value);
+
   // Cocos 渠道自动加载
   if (isCocos.value) {
     autoLoadCocosData();
@@ -327,7 +358,8 @@ onMounted(() => {
   flex-direction: column;
   background-color: #1e1e1e;
   color: #d4d4d4;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .app-header {
@@ -461,7 +493,9 @@ onMounted(() => {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-panel p {
@@ -519,7 +553,7 @@ onMounted(() => {
 .info-path {
   font-size: 12px;
   color: #666;
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

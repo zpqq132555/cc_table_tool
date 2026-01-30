@@ -166,7 +166,14 @@
           </div>
           <div class="form-group">
             <label class="form-label">默认数量</label>
-            <input type="number" class="form-input" v-model.number="typeConfig.defaultValue.count" />
+            <input 
+              type="number" 
+              class="form-input" 
+              v-model.number="typeConfig.defaultValue.count" 
+              min="1"
+              @input="validateRewardCount"
+              @blur="validateRewardCount"
+            />
           </div>
         </div>
       </template>
@@ -417,7 +424,7 @@ function handleTypeChange() {
       typeConfig.options = [];
       break;
     case 'reward':
-      typeConfig.defaultValue = { id: '', count: 0 };
+      typeConfig.defaultValue = { id: '', count: 1 };
       break;
     case 'array':
       typeConfig.fixedLength = 0;
@@ -438,6 +445,13 @@ function addOption() {
 // 删除选项
 function removeOption(index: number) {
   typeConfig.options.splice(index, 1);
+}
+
+// 验证奖励数量
+function validateRewardCount() {
+  if (typeConfig.defaultValue && typeConfig.defaultValue.count <= 0) {
+    typeConfig.defaultValue.count = 1;
+  }
 }
 
 // 添加属性
