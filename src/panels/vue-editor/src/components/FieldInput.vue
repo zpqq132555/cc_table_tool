@@ -67,32 +67,21 @@
         :class="{ 'is-open': showSelectDropdown }"
       >
         <span class="select-value">
-          {{ getSelectLabel(inputValue) || '请选择' }}
+          {{ getSelectLabel(inputValue) || '无选项' }}
         </span>
         <span class="select-arrow">▼</span>
       </div>
       <div v-if="showSelectDropdown" class="select-dropdown">
-        <div 
-          class="select-option"
-          :class="{ 
-            'is-selected': inputValue === '', 
-            'is-highlighted': highlightedIndex === 0 
-          }"
-          @click="handleSelectOption('')"
-          @mouseenter="highlightedIndex = 0"
-        >
-          请选择
-        </div>
         <div 
           v-for="(opt, idx) in (field as any).options"
           :key="opt.value"
           class="select-option"
           :class="{ 
             'is-selected': inputValue === opt.value,
-            'is-highlighted': highlightedIndex === Number(idx) + 1
+            'is-highlighted': highlightedIndex === Number(idx)
           }"
           @click="handleSelectOption(opt.value)"
-          @mouseenter="highlightedIndex = Number(idx) + 1"
+          @mouseenter="highlightedIndex = Number(idx)"
         >
           {{ opt.label }}
         </div>
@@ -135,34 +124,11 @@
     </div>
 
     <!-- 数组字段 -->
-    <div v-else-if="field.type === 'array'" class="array-input">
-      <div class="array-preview" @click="showArrayEditor = true">
-        <span>数组 ({{ arrayValue.length }} 项)</span>
-        <button type="button" class="btn-edit-array">编辑</button>
-      </div>
-      
-      <!-- 简单数组编辑对话框 -->
-      <div v-if="showArrayEditor" class="mini-dialog-overlay" @click.self="showArrayEditor = false">
-        <div class="mini-dialog">
-          <div class="mini-dialog-header">
-            <span>编辑数组</span>
-            <button @click="showArrayEditor = false">✕</button>
-          </div>
-          <div class="mini-dialog-content">
-            <textarea
-              v-model="arrayJson"
-              class="form-textarea"
-              rows="10"
-              placeholder="输入 JSON 数组，例如：[1, 2, 3]"
-            ></textarea>
-          </div>
-          <div class="mini-dialog-footer">
-            <button class="btn" @click="showArrayEditor = false">取消</button>
-            <button class="btn btn-primary" @click="saveArrayJson">确定</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ArrayEditor
+      v-else-if="field.type === 'array'"
+      v-model="inputValue"
+      :field="field"
+    />
 
     <!-- 对象字段 -->
     <div v-else-if="field.type === 'object'" class="object-input">
@@ -204,6 +170,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import type { IFieldDef } from '../utils/types';
+import ArrayEditor from './ArrayEditor.vue';
 
 // Props
 const props = defineProps<{
@@ -217,10 +184,8 @@ const emit = defineEmits<{
 }>();
 
 // 状态
-const showArrayEditor = ref(false);
 const showObjectEditor = ref(false);
 const showSelectDropdown = ref(false);
-const arrayJson = ref('');
 const objectJson = ref('');
 const highlightedIndex = ref(-1);
 const selectBlurTimeout = ref<number | null>(null);
@@ -334,7 +299,7 @@ function getSelectOptions(): Array<{ value: any; label: string }> {
 }
 
 function getTotalOptionsCount(): number {
-  return getSelectOptions().length + 1; // +1 for "请选择" option
+  return getSelectOptions().length;
 }
 
 function handleSelectFocus() {
@@ -393,13 +358,9 @@ function handleSelectKeydown(e: KeyboardEvent) {
       e.preventDefault();
       if (showSelectDropdown.value && highlightedIndex.value >= 0) {
         const options = getSelectOptions();
-        if (highlightedIndex.value === 0) {
-          handleSelectOption('');
-        } else {
-          const option = options[highlightedIndex.value - 1];
-          if (option) {
-            handleSelectOption(option.value);
-          }
+        const option = options[highlightedIndex.value];
+        if (option) {
+          handleSelectOption(option.value);
         }
       } else {
         showSelectDropdown.value = true;
@@ -483,39 +444,18 @@ function handleRewardCountKeydown(e: KeyboardEvent) {
   }
 }
 
-const arrayValue = computed(() => {
-  return Array.isArray(props.modelValue) ? props.modelValue : [];
-});
-
 const objectValue = computed(() => {
   return typeof props.modelValue === 'object' && props.modelValue !== null && !Array.isArray(props.modelValue)
     ? props.modelValue
     : {};
 });
 
-// 监听数组值变化，更新 JSON 字符串
+// 监听对象值变化，更新 JSON 字符串
 watch(() => props.modelValue, (newVal) => {
-  if (props.field.type === 'array' && Array.isArray(newVal)) {
-    arrayJson.value = JSON.stringify(newVal, null, 2);
-  } else if (props.field.type === 'object' && typeof newVal === 'object') {
+  if (props.field.type === 'object' && typeof newVal === 'object') {
     objectJson.value = JSON.stringify(newVal, null, 2);
   }
 }, { immediate: true });
-
-// 保存数组 JSON
-function saveArrayJson() {
-  try {
-    const parsed = JSON.parse(arrayJson.value);
-    if (!Array.isArray(parsed)) {
-      alert('请输入有效的 JSON 数组');
-      return;
-    }
-    emit('update:modelValue', parsed);
-    showArrayEditor.value = false;
-  } catch (err) {
-    alert('JSON 格式错误: ' + (err as Error).message);
-  }
-}
 
 // 保存对象 JSON
 function saveObjectJson() {
@@ -834,12 +774,10 @@ function getSelectLabel(value: any): string {
   flex-shrink: 0;
 }
 
-.array-input,
 .object-input {
   position: relative;
 }
 
-.array-preview,
 .object-preview {
   display: flex;
   justify-content: space-between;
@@ -851,12 +789,10 @@ function getSelectLabel(value: any): string {
   cursor: pointer;
 }
 
-.array-preview:hover,
 .object-preview:hover {
   border-color: #007acc;
 }
 
-.btn-edit-array,
 .btn-edit-object {
   padding: 4px 12px;
   background: #007acc;
@@ -867,7 +803,6 @@ function getSelectLabel(value: any): string {
   font-size: 12px;
 }
 
-.btn-edit-array:hover,
 .btn-edit-object:hover {
   background: #005a9e;
 }

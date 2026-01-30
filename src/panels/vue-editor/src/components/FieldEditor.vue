@@ -133,16 +133,18 @@
           <div class="form-group">
             <label class="form-label">默认值</label>
             <select class="form-select" v-model="typeConfig.defaultValue">
-              <option value="">-- 请选择 --</option>
               <option v-for="(opt, i) in typeConfig.options" :key="i" :value="opt.value">
                 {{ opt.label }}
+              </option>
+              <option v-if="typeConfig.options.length === 0" value="" disabled>
+                -- 请先添加选项 --
               </option>
             </select>
           </div>
         </div>
         <div class="options-list">
           <div class="options-header">
-            <span>选项列表</span>
+            <span>选项列表 <span v-if="typeConfig.options.length === 0" class="required">*</span></span>
             <button class="btn-small btn-add-option" @click="addOption">➕ 添加选项</button>
           </div>
           <div v-for="(opt, index) in typeConfig.options" :key="index" class="option-item">
@@ -150,8 +152,8 @@
             <input type="text" class="form-input" v-model="opt.value" placeholder="实际值" />
             <button class="btn-icon btn-delete-option" @click="removeOption(Number(index))">🗑️</button>
           </div>
-          <div v-if="typeConfig.options.length === 0" class="options-empty">
-            暂无选项，请添加
+          <div v-if="typeConfig.options.length === 0" class="options-empty options-required">
+            ⚠️ 必须至少添加一个选项
           </div>
         </div>
       </template>
@@ -184,7 +186,7 @@
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">固定长度</label>
-            <input type="number" class="form-input" v-model.number="typeConfig.fixedLength" placeholder="0 表示不定长" />
+            <input type="number" class="form-input" v-model.number="typeConfig.fixedLength" placeholder="0 表示不定长" min="0" />
           </div>
           <div class="form-group">
             <label class="form-label">元素类型</label>
@@ -196,11 +198,109 @@
           </div>
         </div>
         
+        <!-- 元素约束配置（针对基本类型） -->
+        <div v-if="typeConfig.elementType && typeConfig.elementType !== 'array' && typeConfig.elementType !== 'object'" class="element-constraints">
+          <div class="config-subtitle">元素约束</div>
+          
+          <!-- 数字类型元素约束 -->
+          <template v-if="typeConfig.elementType === 'number'">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">默认值</label>
+                <input type="number" class="form-input form-input-small" v-model.number="typeConfig.elementConstraints.defaultValue" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">最小值</label>
+                <input type="number" class="form-input form-input-small" v-model.number="typeConfig.elementConstraints.min" placeholder="不限" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">最大值</label>
+                <input type="number" class="form-input form-input-small" v-model.number="typeConfig.elementConstraints.max" placeholder="不限" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">步长</label>
+                <input type="number" class="form-input form-input-small" v-model.number="typeConfig.elementConstraints.step" placeholder="1" />
+              </div>
+            </div>
+          </template>
+          
+          <!-- 文本类型元素约束 -->
+          <template v-if="typeConfig.elementType === 'string'">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">默认值</label>
+                <input type="text" class="form-input" v-model="typeConfig.elementConstraints.defaultValue" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">最大长度</label>
+                <input type="number" class="form-input form-input-small" v-model.number="typeConfig.elementConstraints.maxLength" placeholder="不限" />
+              </div>
+            </div>
+          </template>
+          
+          <!-- 布尔类型元素约束 -->
+          <template v-if="typeConfig.elementType === 'boolean'">
+            <div class="form-row">
+              <div class="form-group form-group-checkbox">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="typeConfig.elementConstraints.defaultValue" />
+                  <span class="checkbox-text">默认开启</span>
+                </label>
+              </div>
+            </div>
+          </template>
+          
+          <!-- 下拉类型元素约束 -->
+          <template v-if="typeConfig.elementType === 'select'">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">默认值</label>
+                <select class="form-select" v-model="typeConfig.elementConstraints.defaultValue">
+                  <option v-for="(opt, i) in typeConfig.elementConstraints.options" :key="i" :value="opt.value">
+                    {{ opt.label }}
+                  </option>
+                  <option v-if="typeConfig.elementConstraints.options.length === 0" value="" disabled>
+                    -- 请先添加选项 --
+                  </option>
+                </select>
+              </div>
+            </div>
+            <div class="options-list options-list-compact">
+              <div class="options-header">
+                <span>选项列表 <span v-if="typeConfig.elementConstraints.options.length === 0" class="required">*</span></span>
+                <button type="button" class="btn-small btn-add-option" @click="addElementOption">➕ 添加选项</button>
+              </div>
+              <div v-for="(opt, index) in typeConfig.elementConstraints.options" :key="index" class="option-item">
+                <input type="text" class="form-input form-input-small" v-model="opt.label" placeholder="显示文本" />
+                <input type="text" class="form-input form-input-small" v-model="opt.value" placeholder="实际值" />
+                <button type="button" class="btn-icon btn-delete-option" @click="removeElementOption(Number(index))">🗑️</button>
+              </div>
+              <div v-if="typeConfig.elementConstraints.options.length === 0" class="options-empty options-required">
+                ⚠️ 必须至少添加一个选项
+              </div>
+            </div>
+          </template>
+          
+          <!-- 奖励类型元素约束 -->
+          <template v-if="typeConfig.elementType === 'reward'">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">默认ID</label>
+                <input type="text" class="form-input" v-model="typeConfig.elementConstraints.defaultValue.id" placeholder="奖励ID" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">默认数量</label>
+                <input type="number" class="form-input" v-model.number="typeConfig.elementConstraints.defaultValue.count" min="1" />
+              </div>
+            </div>
+          </template>
+        </div>
+        
         <!-- 嵌套元素配置 -->
         <div v-if="typeConfig.elementType === 'array' || typeConfig.elementType === 'object'" class="nested-config">
           <div class="nested-header">
             <span class="nested-title">📦 元素定义</span>
-            <button class="btn-small btn-edit-nested" @click="openElementEditor">
+            <button type="button" class="btn-small btn-edit-nested" @click="openElementEditor">
               ✏️ 编辑元素结构
             </button>
           </div>
@@ -361,6 +461,14 @@ const typeConfig = reactive<any>({
   fixedLength: 0,
   elementType: 'string',
   element: null as IFieldDef | null,  // 嵌套元素定义
+  elementConstraints: {  // 基本类型元素的约束
+    defaultValue: undefined as any,
+    min: undefined,
+    max: undefined,
+    step: undefined,
+    maxLength: undefined,
+    options: [] as { label: string; value: string }[],
+  },
   // object
   properties: [] as { key: string; name: string; type: FieldType; nestedDef?: IFieldDef }[],
 });
@@ -440,11 +548,25 @@ function handleTypeChange() {
 // 添加选项
 function addOption() {
   typeConfig.options.push({ label: '', value: '' });
+  // 如果是第一个选项且没有默认值，自动设置为默认值
+  if (typeConfig.options.length === 1 && !typeConfig.defaultValue) {
+    watch(() => typeConfig.options[0].value, (newValue) => {
+      if (!typeConfig.defaultValue && newValue) {
+        typeConfig.defaultValue = newValue;
+      }
+    });
+  }
 }
 
 // 删除选项
 function removeOption(index: number) {
+  const removedOption = typeConfig.options[index];
   typeConfig.options.splice(index, 1);
+  
+  // 如果删除的是当前选中的默认值，切换到第一个选项
+  if (typeConfig.defaultValue === removedOption?.value && typeConfig.options.length > 0) {
+    typeConfig.defaultValue = typeConfig.options[0].value;
+  }
 }
 
 // 验证奖励数量
@@ -468,7 +590,131 @@ function removeProperty(index: number) {
 function handleElementTypeChange() {
   if (typeConfig.elementType === 'array' || typeConfig.elementType === 'object') {
     typeConfig.element = null; // 重置嵌套定义
+  } else {
+    // 重置元素约束为默认值
+    resetElementConstraints();
   }
+}
+
+// 重置元素约束
+function resetElementConstraints() {
+  switch (typeConfig.elementType) {
+    case 'string':
+      typeConfig.elementConstraints = {
+        defaultValue: '',
+        maxLength: undefined,
+      };
+      break;
+    case 'number':
+      typeConfig.elementConstraints = {
+        defaultValue: 0,
+        min: undefined,
+        max: undefined,
+        step: undefined,
+      };
+      break;
+    case 'boolean':
+      typeConfig.elementConstraints = {
+        defaultValue: false,
+      };
+      break;
+    case 'select':
+      typeConfig.elementConstraints = {
+        defaultValue: '',
+        options: [],
+      };
+      break;
+    case 'reward':
+      typeConfig.elementConstraints = {
+        defaultValue: { id: '', count: 0 },
+      };
+      break;
+    default:
+      typeConfig.elementConstraints = {};
+  }
+}
+
+// 添加元素选项（用于数组元素是下拉类型）
+function addElementOption() {
+  if (!typeConfig.elementConstraints.options) {
+    typeConfig.elementConstraints.options = [];
+  }
+  typeConfig.elementConstraints.options.push({ label: '', value: '' });
+  
+  // 如果是第一个选项且没有默认值，自动设置为默认值
+  if (typeConfig.elementConstraints.options.length === 1 && !typeConfig.elementConstraints.defaultValue) {
+    watch(() => typeConfig.elementConstraints.options[0].value, (newValue) => {
+      if (!typeConfig.elementConstraints.defaultValue && newValue) {
+        typeConfig.elementConstraints.defaultValue = newValue;
+      }
+    });
+  }
+}
+
+// 删除元素选项
+function removeElementOption(index: number) {
+  const removedOption = typeConfig.elementConstraints.options[index];
+  typeConfig.elementConstraints.options.splice(index, 1);
+  
+  // 如果删除的是当前选中的默认值，切换到第一个选项
+  if (typeConfig.elementConstraints.defaultValue === removedOption?.value 
+      && typeConfig.elementConstraints.options.length > 0) {
+    typeConfig.elementConstraints.defaultValue = typeConfig.elementConstraints.options[0].value;
+  }
+}
+
+// 应用元素约束到字段定义
+function applyElementConstraints(elementType: FieldType, constraints: any): any {
+  const result: any = {};
+  
+  switch (elementType) {
+    case 'string':
+      if (constraints.defaultValue !== undefined && constraints.defaultValue !== '') {
+        result.defaultValue = constraints.defaultValue;
+      }
+      if (constraints.maxLength !== undefined) {
+        result.maxLength = constraints.maxLength;
+      }
+      break;
+      
+    case 'number':
+      if (constraints.defaultValue !== undefined) {
+        result.defaultValue = constraints.defaultValue;
+      }
+      if (constraints.min !== undefined) {
+        result.min = constraints.min;
+      }
+      if (constraints.max !== undefined) {
+        result.max = constraints.max;
+      }
+      if (constraints.step !== undefined) {
+        result.step = constraints.step;
+      }
+      break;
+      
+    case 'boolean':
+      if (constraints.defaultValue !== undefined) {
+        result.defaultValue = constraints.defaultValue;
+      }
+      break;
+      
+    case 'select':
+      if (constraints.options && constraints.options.length > 0) {
+        result.options = constraints.options;
+      }
+      if (constraints.defaultValue !== undefined && constraints.defaultValue !== '') {
+        result.defaultValue = constraints.defaultValue;
+      }
+      break;
+      
+    case 'reward':
+      if (constraints.defaultValue) {
+        result.defaultValue = { ...constraints.defaultValue };
+      }
+      break;
+  }
+  
+  return result;
 }
 
 // 属性类型改变
@@ -596,6 +842,37 @@ onMounted(() => {
         // 保存完整的嵌套元素定义
         if (props.field.element && (props.field.element.type === 'array' || props.field.element.type === 'object')) {
           typeConfig.element = JSON.parse(JSON.stringify(props.field.element));
+        } else if (props.field.element) {
+          // 加载基本类型元素的约束
+          const elem = props.field.element as any;
+          typeConfig.elementConstraints = {};
+          
+          switch (elem.type) {
+            case 'string':
+              typeConfig.elementConstraints.defaultValue = elem.defaultValue || '';
+              typeConfig.elementConstraints.maxLength = elem.maxLength;
+              break;
+            case 'number':
+              typeConfig.elementConstraints.defaultValue = elem.defaultValue ?? 0;
+              typeConfig.elementConstraints.min = elem.min;
+              typeConfig.elementConstraints.max = elem.max;
+              typeConfig.elementConstraints.step = elem.step;
+              break;
+            case 'boolean':
+              typeConfig.elementConstraints.defaultValue = elem.defaultValue || false;
+              break;
+            case 'select':
+              typeConfig.elementConstraints.defaultValue = elem.defaultValue || '';
+              typeConfig.elementConstraints.options = elem.options ? [...elem.options] : [];
+              break;
+            case 'reward':
+              typeConfig.elementConstraints.defaultValue = elem.defaultValue 
+                ? { ...elem.defaultValue }
+                : { id: '', count: 0 };
+              break;
+          }
+        } else {
+          resetElementConstraints();
         }
         break;
       case 'object':
@@ -620,6 +897,20 @@ onMounted(() => {
 // 保存
 function handleSave() {
   if (!isValid.value) return;
+
+  // 验证下拉类型必须有选项
+  if (form.type === 'select' && typeConfig.options.length === 0) {
+    alert('下拉类型字段至少需要一个选项');
+    return;
+  }
+
+  // 验证数组元素类型为下拉时必须有选项
+  if (form.type === 'array' && typeConfig.elementType === 'select') {
+    if (!typeConfig.elementConstraints.options || typeConfig.elementConstraints.options.length === 0) {
+      alert('数组元素类型为下拉时，至少需要一个选项');
+      return;
+    }
+  }
 
   let field: IFieldDef;
 
@@ -694,7 +985,13 @@ function handleSave() {
             : { type: 'object', key: 'item', name: '元素', properties: [] } as any;
         }
       } else {
-        element = { type: typeConfig.elementType, key: 'item', name: '元素' } as IFieldDef;
+        // 基本类型元素，应用约束
+        element = {
+          type: typeConfig.elementType,
+          key: 'item',
+          name: '元素',
+          ...applyElementConstraints(typeConfig.elementType, typeConfig.elementConstraints)
+        } as IFieldDef;
       }
       
       field = {
@@ -848,6 +1145,35 @@ function handleSave() {
   font-weight: 600;
   color: #4fc3f7;
   margin-bottom: 12px;
+}
+
+.config-subtitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4caf50;
+  margin: 12px 0 8px 0;
+}
+
+/* 元素约束配置 */
+.element-constraints {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(76, 175, 80, 0.05);
+  border: 1px solid rgba(76, 175, 80, 0.2);
+  border-radius: 6px;
+}
+
+.form-input-small {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.options-list-compact {
+  margin-top: 8px;
+}
+
+.options-list-compact .option-item {
+  margin-bottom: 6px;
 }
 
 /* 选项列表 */
@@ -1009,6 +1335,14 @@ function handleSave() {
   padding: 20px;
   color: #666;
   font-size: 13px;
+}
+
+.options-required {
+  color: #ff9800;
+  font-weight: 500;
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px dashed #ff9800;
+  border-radius: 4px;
 }
 
 /* 嵌套对话框 */

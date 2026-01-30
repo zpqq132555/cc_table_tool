@@ -135,6 +135,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { dataManager, getFieldTypeName } from '../utils/dataManager';
+import { getDefaultValue } from '../utils/fieldFactory';
 import type { ITableDef } from '../utils/types';
 import FieldInput from './FieldInput.vue';
 
@@ -305,24 +306,10 @@ function createDefaultInfo(): Record<string, any> {
   const info: Record<string, any> = {};
   
   table.value.fields.forEach(field => {
-    info[field.key] = (field as any).defaultValue ?? getDefaultValueByType(field.type);
+    info[field.key] = getDefaultValue(field);
   });
   
   return info;
-}
-
-// ==================== 获取默认值 ====================
-function getDefaultValueByType(fieldType: string): any {
-  switch (fieldType) {
-    case 'string': return '';
-    case 'number': return 0;
-    case 'boolean': return false;
-    case 'array': return [];
-    case 'object': return {};
-    case 'reward': return { id: '', count: 0 };
-    case 'select': return '';
-    default: return null;
-  }
 }
 </script>
 
