@@ -35,8 +35,8 @@
 
 <script setup lang="ts">
 import { computed, watch } from 'vue';
-import type { IFieldDef, IObjectField } from '../utils/types';
 import { getDefaultValue, getFieldTypeName } from '../utils/fieldFactory';
+import type { IObjectField } from '../utils/types';
 import FieldInput from './FieldInput.vue';
 
 // Props
