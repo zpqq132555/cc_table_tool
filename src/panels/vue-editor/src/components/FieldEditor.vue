@@ -43,12 +43,6 @@
         </select>
       </div>
       
-      <div class="form-group form-group-checkbox">
-        <label class="checkbox-label">
-          <input type="checkbox" v-model="form.required" />
-          <span class="checkbox-text">必填字段</span>
-        </label>
-      </div>
     </div>
 
     <div class="form-row">
@@ -131,12 +125,19 @@
         <div class="config-title">下拉选项配置</div>
         <div class="form-row">
           <div class="form-group">
+            <label class="form-label">值类型</label>
+            <select class="form-select" v-model="typeConfig.selectValueType">
+              <option value="string">字符串</option>
+              <option value="number">数字</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label class="form-label">默认值</label>
             <select class="form-select" v-model="typeConfig.defaultValue">
               <option v-for="(opt, i) in typeConfig.options" :key="i" :value="opt.value">
                 {{ opt.label }}
               </option>
-              <option v-if="typeConfig.options.length === 0" value="" disabled>
+              <option v-if="typeConfig.options.length === 0" :value="typeConfig.selectValueType === 'number' ? undefined : ''" disabled>
                 -- 请先添加选项 --
               </option>
             </select>
@@ -145,13 +146,31 @@
         <div class="options-list">
           <div class="options-header">
             <span>选项列表 <span v-if="typeConfig.options.length === 0" class="required">*</span></span>
-            <button class="btn-small btn-add-option" @click="addOption">➕ 添加选项</button>
           </div>
           <div v-for="(opt, index) in typeConfig.options" :key="index" class="option-item">
             <input type="text" class="form-input" v-model="opt.label" placeholder="显示文本" />
-            <input type="text" class="form-input" v-model="opt.value" placeholder="实际值" />
+            <div style="display:flex;align-items:center;gap:6px;width:220px;">
+              <template v-if="typeConfig.selectValueType === 'number'">
+                <button type="button" class="btn-tiny" @click="changeOptionNumber(typeConfig.options, Number(index), -1)">-</button>
+              </template>
+              <input 
+                :type="typeConfig.selectValueType === 'number' ? 'number' : 'text'" 
+                class="form-input" 
+                :value="opt.value" 
+                @input="(e: any) => setSelectOptionValue(typeConfig.options, Number(index), typeConfig.selectValueType === 'number' ? Number(e.target.value) : e.target.value)"
+                :placeholder="typeConfig.selectValueType === 'number' ? '数字' : '实际值'"
+                style="flex:1;min-width:0;"
+              />
+              <template v-if="typeConfig.selectValueType === 'number'">
+                <button type="button" class="btn-tiny" @click="changeOptionNumber(typeConfig.options, Number(index), 1)">+</button>
+              </template>
+            </div>
+            <button class="btn-icon btn-move-up" :disabled="index === 0" @click="moveOptionUp(Number(index))" title="上移">⬆️</button>
+            <button class="btn-icon btn-move-down" :disabled="index === typeConfig.options.length - 1" @click="moveOptionDown(Number(index))" title="下移">⬇️</button>
             <button class="btn-icon btn-delete-option" @click="removeOption(Number(index))">🗑️</button>
           </div>
+          <button class="btn-small btn-add-option" style="margin-top:8px;" @click="addOption">➕ 添加选项</button>
+          <div v-if="selectOptionsError" class="options-error">{{ selectOptionsError }}</div>
           <div v-if="typeConfig.options.length === 0" class="options-empty options-required">
             ⚠️ 必须至少添加一个选项
           </div>
@@ -254,12 +273,19 @@
           <template v-if="typeConfig.elementType === 'select'">
             <div class="form-row">
               <div class="form-group">
+                <label class="form-label">值类型</label>
+                <select class="form-select form-select-small" v-model="typeConfig.elementConstraints.selectValueType">
+                  <option value="string">字符串</option>
+                  <option value="number">数字</option>
+                </select>
+              </div>
+              <div class="form-group">
                 <label class="form-label">默认值</label>
                 <select class="form-select" v-model="typeConfig.elementConstraints.defaultValue">
                   <option v-for="(opt, i) in typeConfig.elementConstraints.options" :key="i" :value="opt.value">
                     {{ opt.label }}
                   </option>
-                  <option v-if="typeConfig.elementConstraints.options.length === 0" value="" disabled>
+                  <option v-if="typeConfig.elementConstraints.options.length === 0" :value="typeConfig.elementConstraints.selectValueType === 'number' ? undefined : ''" disabled>
                     -- 请先添加选项 --
                   </option>
                 </select>
@@ -272,8 +298,26 @@
               </div>
               <div v-for="(opt, index) in typeConfig.elementConstraints.options" :key="index" class="option-item">
                 <input type="text" class="form-input form-input-small" v-model="opt.label" placeholder="显示文本" />
-                <input type="text" class="form-input form-input-small" v-model="opt.value" placeholder="实际值" />
+                <div style="display:flex;align-items:center;gap:6px;width:160px;">
+                  <template v-if="typeConfig.elementConstraints.selectValueType === 'number'">
+                    <button type="button" class="btn-tiny" @click="changeOptionNumber(typeConfig.elementConstraints.options, Number(index), -1)">-</button>
+                  </template>
+                  <input 
+                    :type="typeConfig.elementConstraints.selectValueType === 'number' ? 'number' : 'text'" 
+                    class="form-input form-input-small" 
+                    :value="opt.value" 
+                    @input="(e: any) => setSelectOptionValue(typeConfig.elementConstraints.options, Number(index), typeConfig.elementConstraints.selectValueType === 'number' ? Number(e.target.value) : e.target.value, typeConfig.elementConstraints.selectValueType)"
+                    :placeholder="typeConfig.elementConstraints.selectValueType === 'number' ? '数字' : '实际值'"
+                    style="flex:1;min-width:0;"
+                  />
+                  <template v-if="typeConfig.elementConstraints.selectValueType === 'number'">
+                    <button type="button" class="btn-tiny" @click="changeOptionNumber(typeConfig.elementConstraints.options, Number(index), 1)">+</button>
+                  </template>
+                </div>
                 <button type="button" class="btn-icon btn-delete-option" @click="removeElementOption(Number(index))">🗑️</button>
+              </div>
+              <div v-if="form.type === 'array' && typeConfig.elementType === 'select' && validateSelectOptions(typeConfig.elementConstraints.options, typeConfig.elementConstraints.selectValueType)" class="options-error">
+                {{ validateSelectOptions(typeConfig.elementConstraints.options, typeConfig.elementConstraints.selectValueType) }}
               </div>
               <div v-if="typeConfig.elementConstraints.options.length === 0" class="options-empty options-required">
                 ⚠️ 必须至少添加一个选项
@@ -317,7 +361,6 @@
         <div class="options-list">
           <div class="options-header">
             <span>属性列表</span>
-            <button class="btn-small btn-add-option" @click="addProperty">➕ 添加属性</button>
           </div>
           <div v-for="(prop, index) in typeConfig.properties" :key="index" class="property-item-full">
             <div class="property-row">
@@ -330,8 +373,9 @@
               </select>
               <button 
                 v-if="prop.type === 'array' || prop.type === 'object'" 
+                type="button"
                 class="btn-icon btn-edit-nested" 
-                @click="openPropertyEditor(Number(index))"
+                @click.stop="openPropertyEditor(Number(index))"
                 title="编辑嵌套结构"
               >
                 ⚙️
@@ -339,100 +383,138 @@
               <button class="btn-icon btn-delete-option" @click="removeProperty(Number(index))">🗑️</button>
             </div>
             
-            <!-- 嵌套结构预览 -->
-            <div v-if="prop.type === 'array' || prop.type === 'object'" class="property-nested-preview">
+            <!-- 嵌套结构预览（点击可打开编辑） -->
+            <div 
+              v-if="prop.type === 'array' || prop.type === 'object'" 
+              class="property-nested-preview property-nested-preview-clickable"
+              @click="openPropertyEditor(Number(index))"
+              role="button"
+              tabindex="0"
+              title="点击配置嵌套结构"
+            >
               <span v-if="prop.nestedDef">{{ getNestedPreview(prop.nestedDef) }}</span>
               <span v-else class="nested-empty">点击 ⚙️ 配置嵌套结构</span>
             </div>
             
             <!-- 属性约束配置 - 根据类型直接显示 -->
             <div v-if="prop.type === 'number' || prop.type === 'string' || prop.type === 'boolean' || prop.type === 'select' || prop.type === 'reward'" class="property-constraints">
-              <!-- 数字类型约束 -->
-              <template v-if="prop.type === 'number'">
-                <div class="constraint-row">
-                  <label>默认值</label>
-                  <input type="number" class="form-input-small" v-model.number="prop.constraints.defaultValue" />
-                </div>
-                <div class="constraint-row">
-                  <label>最小值</label>
-                  <input type="number" class="form-input-small" v-model.number="prop.constraints.min" />
-                </div>
-                <div class="constraint-row">
-                  <label>最大值</label>
-                  <input type="number" class="form-input-small" v-model.number="prop.constraints.max" />
-                </div>
-                <div class="constraint-row">
-                  <label>步长</label>
-                  <input type="number" class="form-input-small" v-model.number="prop.constraints.step" />
-                </div>
-              </template>
-              
-              <!-- 文本类型约束 -->
-              <template v-if="prop.type === 'string'">
-                <div class="constraint-row">
-                  <label>默认值</label>
-                  <input type="text" class="form-input-small" v-model="prop.constraints.defaultValue" />
-                </div>
-                <div class="constraint-row">
-                  <label>最大长度</label>
-                  <input type="number" class="form-input-small" v-model.number="prop.constraints.maxLength" />
-                </div>
-              </template>
-              
-              <!-- 布尔类型约束 -->
-              <template v-if="prop.type === 'boolean'">
-                <div class="constraint-row">
-                  <label class="checkbox-label">
-                    <input type="checkbox" v-model="prop.constraints.defaultValue" />
-                    <span>默认开启</span>
-                  </label>
-                </div>
-              </template>
-              
-              <!-- 下拉类型约束 -->
-              <template v-if="prop.type === 'select'">
-                <div class="constraint-row">
-                  <label>默认值</label>
-                  <select class="form-select-small" v-model="prop.constraints.defaultValue">
-                    <option v-for="(opt, i) in prop.constraints.options" :key="i" :value="opt.value">
-                      {{ opt.label }}
-                    </option>
-                    <option v-if="!prop.constraints.options || prop.constraints.options.length === 0" value="" disabled>
-                      -- 请先添加选项 --
-                    </option>
-                  </select>
-                </div>
-                <div class="constraint-options">
-                  <div class="constraint-options-header">
-                    <span>选项列表 <span v-if="!prop.constraints.options || prop.constraints.options.length === 0" class="required">*</span></span>
-                    <button type="button" class="btn-tiny" @click="addPropertyOption(Number(index))">➕</button>
+              <div class="constraint-caption">约束</div>
+              <div class="constraint-grid">
+                <!-- 数字类型约束 -->
+                <template v-if="prop.type === 'number'">
+                  <div class="constraint-row">
+                    <label>默认值</label>
+                    <input type="number" class="form-input constraint-input" v-model.number="prop.constraints.defaultValue" placeholder="0" />
                   </div>
-                  <div v-for="(opt, optIdx) in prop.constraints.options" :key="optIdx" class="constraint-option-item">
-                    <input type="text" class="form-input-tiny" v-model="opt.label" placeholder="显示" />
-                    <input type="text" class="form-input-tiny" v-model="opt.value" placeholder="值" />
-                    <button type="button" class="btn-icon-tiny" @click="removePropertyOption(Number(index), Number(optIdx))">✕</button>
+                  <div class="constraint-row">
+                    <label>最小值</label>
+                    <input type="number" class="form-input constraint-input" v-model.number="prop.constraints.min" placeholder="不限" />
                   </div>
-                  <div v-if="!prop.constraints.options || prop.constraints.options.length === 0" class="options-empty options-required">
-                    ⚠️ 必须至少添加一个选项
+                  <div class="constraint-row">
+                    <label>最大值</label>
+                    <input type="number" class="form-input constraint-input" v-model.number="prop.constraints.max" placeholder="不限" />
                   </div>
-                </div>
-              </template>
-              
-              <!-- 奖励类型约束 -->
-              <template v-if="prop.type === 'reward'">
-                <div class="constraint-row">
-                  <label>默认ID</label>
-                  <input type="text" class="form-input-small" v-model="prop.constraints.defaultValue.id" />
-                </div>
-                <div class="constraint-row">
-                  <label>默认数量</label>
-                  <input type="number" class="form-input-small" v-model.number="prop.constraints.defaultValue.count" min="1" />
-                </div>
-              </template>
+                  <div class="constraint-row">
+                    <label>步长</label>
+                    <input type="number" class="form-input constraint-input" v-model.number="prop.constraints.step" placeholder="1" />
+                  </div>
+                </template>
+                
+                <!-- 文本类型约束 -->
+                <template v-if="prop.type === 'string'">
+                  <div class="constraint-row constraint-row-wide">
+                    <label>默认值</label>
+                    <input type="text" class="form-input constraint-input" v-model="prop.constraints.defaultValue" placeholder="可选" />
+                  </div>
+                  <div class="constraint-row">
+                    <label>最大长度</label>
+                    <input type="number" class="form-input constraint-input" v-model.number="prop.constraints.maxLength" placeholder="不限" />
+                  </div>
+                </template>
+                
+                <!-- 布尔类型约束 -->
+                <template v-if="prop.type === 'boolean'">
+                  <div class="constraint-row constraint-row-full">
+                    <label class="checkbox-label">
+                      <input type="checkbox" v-model="prop.constraints.defaultValue" />
+                      <span>默认开启</span>
+                    </label>
+                  </div>
+                </template>
+                
+                <!-- 下拉类型约束 -->
+                <template v-if="prop.type === 'select'">
+                  <div class="constraint-row">
+                    <label>值类型</label>
+                    <select class="form-select constraint-input" v-model="prop.constraints.selectValueType">
+                      <option value="string">字符串</option>
+                      <option value="number">数字</option>
+                    </select>
+                  </div>
+                  <div class="constraint-row constraint-row-wide">
+                    <label>默认值</label>
+                    <select class="form-select constraint-input" v-model="prop.constraints.defaultValue">
+                      <option v-for="(opt, i) in prop.constraints.options" :key="i" :value="opt.value">
+                        {{ opt.label }}
+                      </option>
+                      <option v-if="!prop.constraints.options || prop.constraints.options.length === 0" :value="prop.constraints.selectValueType === 'number' ? undefined : ''" disabled>
+                        -- 请先添加选项 --
+                      </option>
+                    </select>
+                  </div>
+                  <div class="constraint-options constraint-options-full">
+                    <div class="constraint-options-header">
+                      <span>选项列表 <span v-if="!prop.constraints.options || prop.constraints.options.length === 0" class="required">*</span></span>
+                      <button type="button" class="btn-tiny" @click="addPropertyOption(Number(index))">➕</button>
+                    </div>
+                    <div v-for="(opt, optIdx) in prop.constraints.options" :key="optIdx" class="constraint-option-item">
+                      <input type="text" class="form-input form-input-tiny" v-model="opt.label" placeholder="显示" />
+                      <div style="display:flex;align-items:center;gap:6px;width:220px;">
+                        <template v-if="prop.constraints.selectValueType === 'number'">
+                          <button type="button" class="btn-tiny" @click="changeOptionNumber(prop.constraints.options, Number(optIdx), -1)">-</button>
+                        </template>
+                        <input 
+                          :type="prop.constraints.selectValueType === 'number' ? 'number' : 'text'" 
+                          class="form-input form-input-tiny" 
+                          :value="opt.value" 
+                          @input="(e: any) => setPropertyOptionValue(Number(index), Number(optIdx), prop.constraints.selectValueType === 'number' ? Number(e.target.value) : e.target.value)"
+                          :placeholder="prop.constraints.selectValueType === 'number' ? '数字' : '值'"
+                          style="flex:1;min-width:0;"
+                        />
+                        <template v-if="prop.constraints.selectValueType === 'number'">
+                          <button type="button" class="btn-tiny" @click="changeOptionNumber(prop.constraints.options, Number(optIdx), 1)">+</button>
+                        </template>
+                        <button type="button" class="btn-icon-tiny" @click="removePropertyOption(Number(index), Number(optIdx))">✕</button>
+                      </div>
+                    </div>
+                    <div v-if="prop.constraints.options && validateSelectOptions(prop.constraints.options, prop.constraints.selectValueType || 'string')" class="options-error">
+                      {{ validateSelectOptions(prop.constraints.options, prop.constraints.selectValueType || 'string') }}
+                    </div>
+                    <div v-if="!prop.constraints.options || prop.constraints.options.length === 0" class="options-empty options-required">
+                      ⚠️ 必须至少添加一个选项
+                    </div>
+                  </div>
+                </template>
+                
+                <!-- 奖励类型约束 -->
+                <template v-if="prop.type === 'reward'">
+                  <div class="constraint-row">
+                    <label>默认ID</label>
+                    <input type="text" class="form-input constraint-input" v-model="prop.constraints.defaultValue.id" placeholder="奖励ID" />
+                  </div>
+                  <div class="constraint-row">
+                    <label>默认数量</label>
+                    <input type="number" class="form-input constraint-input" v-model.number="prop.constraints.defaultValue.count" min="1" placeholder="1" />
+                  </div>
+                </template>
+              </div>
             </div>
           </div>
           <div v-if="typeConfig.properties.length === 0" class="options-empty">
             暂无属性，请添加
+          </div>
+          <div class="options-list-actions">
+            <button class="btn-small btn-add-option" @click="addProperty">➕ 添加属性</button>
           </div>
         </div>
       </template>
@@ -467,6 +549,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { FieldType, IFieldDef } from '../utils/dataManager';
+// 保证下拉选项值类型有默认值（字符串），用于决定解析为字符串还是数字
+onMounted(() => {
+  if (form.type === 'select' && !typeConfig.selectValueType) {
+    typeConfig.selectValueType = 'string';
+  }
+});
 
 // Props
 interface Props {
@@ -544,7 +632,8 @@ const typeConfig = reactive<any>({
   maxLength: undefined,
   multiline: false,
   // select
-  options: [] as { label: string; value: string }[],
+  selectValueType: 'string' as 'string' | 'number',
+  options: [] as { label: string; value: string | number }[],
   // array
   fixedLength: 0,
   elementType: 'string',
@@ -555,7 +644,8 @@ const typeConfig = reactive<any>({
     max: undefined,
     step: undefined,
     maxLength: undefined,
-    options: [] as { label: string; value: string }[],
+    selectValueType: 'string' as 'string' | 'number',
+    options: [] as { label: string; value: string | number }[],
   },
   // object
   properties: [] as { 
@@ -583,6 +673,96 @@ const errors = reactive({
 const isValid = computed(() => {
   return form.key.trim() !== '' && form.name.trim() !== '' && !errors.key && !errors.name;
 });
+
+/**
+ * 校验下拉选项：
+ * - 所有显示文本互不相同
+ * - 所有实际值互不相同
+ * - 若某显示文本等于某实际值，只有在它们属于同一项时允许（即同索引），否则报错
+ * 返回错误文案，空表示通过
+ */
+function validateSelectOptions(options: { label: string; value: string | number }[], valueType: 'string' | 'number'): string {
+  if (!options.length) return '';
+  const labels = options.map(o => String(o.label).trim());
+  const values = options.map(o => String(o.value));
+
+  // 检查显示文本唯一
+  for (let i = 0; i < labels.length; i++) {
+    const L = labels[i];
+    if (!L) return `选项 ${i + 1}：显示文本不能为空`;
+    if (labels.indexOf(L) !== i) return `显示文本“${L}”重复，请保证每项显示文本唯一`;
+  }
+
+  // 检查实际值唯一
+  for (let i = 0; i < values.length; i++) {
+    const V = values[i];
+    if (V === undefined || V === null || V === '') return `选项 ${i + 1}：实际值不能为空`;
+    if (values.indexOf(V) !== i) return `实际值“${V}”重复，请保证每项实际值唯一`;
+  }
+
+  // 检查显示文本与其他项实际值冲突（允许与自身项的实际值相等）
+  for (let i = 0; i < labels.length; i++) {
+    for (let j = 0; j < values.length; j++) {
+      if (i === j) continue; // 同一项允许相等
+      if (labels[i] === values[j]) {
+        return `显示文本“${labels[i]}”与第 ${j + 1} 项的实际值相同，除非在同一项中`;
+      }
+    }
+  }
+
+  return '';
+}
+
+const selectOptionsError = computed(() => {
+  if (form.type !== 'select') return '';
+  return validateSelectOptions(typeConfig.options, typeConfig.selectValueType);
+});
+
+/** 设置下拉选项的实际值（根据值类型写回 number 或 string） */
+function setSelectOptionValue(
+  options: { label: string; value: string | number }[],
+  index: number,
+  raw: string | number,
+  valueType?: 'string' | 'number'
+) {
+  const vt = valueType ?? typeConfig.selectValueType;
+  if (vt === 'number') {
+    const num = raw === '' ? ('' as any) : Number(raw);
+    options[index].value = num === '' || !Number.isNaN(num) ? num : options[index].value;
+  } else {
+    options[index].value = typeof raw === 'string' ? raw : String(raw);
+  }
+}
+
+function setPropertyOptionValue(propIndex: number, optIndex: number, raw: string | number) {
+  const prop = typeConfig.properties[propIndex];
+  if (!prop?.constraints?.options) return;
+  const vt = (prop.constraints.selectValueType || 'string') as 'string' | 'number';
+  setSelectOptionValue(prop.constraints.options, optIndex, raw, vt);
+}
+
+// 选项排序功能
+function moveOptionUp(index: number) {
+  if (index > 0) {
+    const arr = typeConfig.options;
+    [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]];
+  }
+}
+function moveOptionDown(index: number) {
+  if (index < typeConfig.options.length - 1) {
+    const arr = typeConfig.options;
+    [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
+  }
+}
+
+// 调整选项数值（用于数值类型下的 -/+ 按钮）
+function changeOptionNumber(options: { label: string; value: string | number }[], index: number, delta: number) {
+  const item = options[index];
+  if (!item) return;
+  const cur = Number(item.value);
+  const num = Number.isNaN(cur) ? 0 : cur;
+  item.value = num + delta;
+}
 
 // 监听 key 变化
 watch(() => form.key, (newKey) => {
@@ -623,6 +803,7 @@ function handleTypeChange() {
       break;
     case 'select':
       typeConfig.defaultValue = '';
+      typeConfig.selectValueType = 'string';
       typeConfig.options = [];
       break;
     case 'reward':
@@ -642,13 +823,9 @@ function handleTypeChange() {
 // 添加选项
 function addOption() {
   typeConfig.options.push({ label: '', value: '' });
-  // 如果是第一个选项且没有默认值，自动设置为默认值
-  if (typeConfig.options.length === 1 && !typeConfig.defaultValue) {
-    watch(() => typeConfig.options[0].value, (newValue) => {
-      if (!typeConfig.defaultValue && newValue) {
-        typeConfig.defaultValue = newValue;
-      }
-    });
+  // 只要是第一个选项，或当前无默认值，自动设置为首项
+  if (typeConfig.options.length === 1 || !typeConfig.defaultValue) {
+    typeConfig.defaultValue = typeConfig.options[0].value;
   }
 }
 
@@ -657,9 +834,11 @@ function removeOption(index: number) {
   const removedOption = typeConfig.options[index];
   typeConfig.options.splice(index, 1);
   
-  // 如果删除的是当前选中的默认值，切换到第一个选项
-  if (typeConfig.defaultValue === removedOption?.value && typeConfig.options.length > 0) {
+  // 删除后自动同步默认值为首项
+  if (typeConfig.options.length > 0) {
     typeConfig.defaultValue = typeConfig.options[0].value;
+  } else {
+    typeConfig.defaultValue = '';
   }
 }
 
@@ -721,6 +900,7 @@ function resetElementConstraints() {
     case 'select':
       typeConfig.elementConstraints = {
         defaultValue: '',
+        selectValueType: 'string',
         options: [],
       };
       break;
@@ -798,14 +978,20 @@ function applyElementConstraints(elementType: FieldType, constraints: any): any 
       }
       break;
       
-    case 'select':
+    case 'select': {
+      const vt = constraints.selectValueType || 'string';
       if (constraints.options && constraints.options.length > 0) {
-        result.options = constraints.options;
+        result.valueType = vt;
+        result.options = constraints.options.map((o: any) => ({
+          label: o.label,
+          value: vt === 'number' ? (o.value === '' ? undefined : Number(o.value)) : String(o.value),
+        })).filter((o: any) => o.value !== undefined && o.value !== '' && (vt !== 'number' || !Number.isNaN(o.value)));
       }
       if (constraints.defaultValue !== undefined && constraints.defaultValue !== '') {
-        result.defaultValue = constraints.defaultValue;
+        result.defaultValue = vt === 'number' ? Number(constraints.defaultValue) : String(constraints.defaultValue);
       }
       break;
+    }
       
     case 'reward':
       if (constraints.defaultValue) {
@@ -855,6 +1041,7 @@ function resetPropertyConstraints(prop: any) {
     case 'select':
       prop.constraints = {
         defaultValue: '',
+        selectValueType: 'string',
         options: [],
       };
       break;
@@ -942,14 +1129,20 @@ function applyPropertyConstraints(prop: any): any {
       }
       break;
       
-    case 'select':
+    case 'select': {
+      const vt = prop.constraints.selectValueType || 'string';
       if (prop.constraints.options && prop.constraints.options.length > 0) {
-        result.options = prop.constraints.options;
+        result.valueType = vt;
+        result.options = prop.constraints.options.map((o: any) => ({
+          label: o.label,
+          value: vt === 'number' ? (o.value === '' ? undefined : Number(o.value)) : String(o.value),
+        })).filter((o: any) => o.value !== undefined && o.value !== '' && (vt !== 'number' || !Number.isNaN(o.value)));
       }
       if (prop.constraints.defaultValue !== undefined && prop.constraints.defaultValue !== '') {
-        result.defaultValue = prop.constraints.defaultValue;
+        result.defaultValue = vt === 'number' ? Number(prop.constraints.defaultValue) : String(prop.constraints.defaultValue);
       }
       break;
+    }
       
     case 'reward':
       if (prop.constraints.defaultValue) {
@@ -969,12 +1162,29 @@ function openElementEditor() {
   if (typeConfig.element) {
     nestedEditingField.value = JSON.parse(JSON.stringify(typeConfig.element));
   } else {
-    // 创建默认的嵌套字段
-    nestedEditingField.value = {
-      type: typeConfig.elementType,
-      key: 'item',
-      name: '元素',
-    } as IFieldDef;
+    // 创建默认的嵌套字段，object/array 必须带完整结构，否则子 FieldEditor 会报错
+    if (typeConfig.elementType === 'object') {
+      nestedEditingField.value = {
+        type: 'object',
+        key: 'item',
+        name: '元素',
+        properties: [],
+      } as IFieldDef;
+    } else if (typeConfig.elementType === 'array') {
+      nestedEditingField.value = {
+        type: 'array',
+        key: 'item',
+        name: '元素',
+        fixedLength: 0,
+        element: { type: 'string', key: 'subitem', name: '子元素' } as IFieldDef,
+      } as IFieldDef;
+    } else {
+      nestedEditingField.value = {
+        type: typeConfig.elementType,
+        key: 'item',
+        name: '元素',
+      } as IFieldDef;
+    }
   }
   
   showNestedDialog.value = true;
@@ -983,17 +1193,36 @@ function openElementEditor() {
 // 打开属性编辑器（对象的属性）
 function openPropertyEditor(index: number) {
   const prop = typeConfig.properties[index];
+  if (!prop) return;
   nestedDialogTitle.value = `编辑属性 "${prop.name || prop.key}" 的结构`;
   nestedEditingContext.value = { type: 'property', index };
   
   if (prop.nestedDef) {
     nestedEditingField.value = JSON.parse(JSON.stringify(prop.nestedDef));
   } else {
-    nestedEditingField.value = {
-      type: prop.type,
-      key: prop.key || 'prop',
-      name: prop.name || '属性',
-    } as IFieldDef;
+    // 必须传入符合 IFieldDef 的完整结构，否则子 FieldEditor 在 onMounted 中会报错
+    if (prop.type === 'object') {
+      nestedEditingField.value = {
+        type: 'object',
+        key: prop.key || 'prop',
+        name: prop.name || '属性',
+        properties: [],
+      } as IFieldDef;
+    } else if (prop.type === 'array') {
+      nestedEditingField.value = {
+        type: 'array',
+        key: prop.key || 'prop',
+        name: prop.name || '属性',
+        fixedLength: 0,
+        element: { type: 'string', key: 'item', name: '元素' } as IFieldDef,
+      } as IFieldDef;
+    } else {
+      nestedEditingField.value = {
+        type: prop.type,
+        key: prop.key || 'prop',
+        name: prop.name || '属性',
+      } as IFieldDef;
+    }
   }
   
   showNestedDialog.value = true;
@@ -1063,10 +1292,13 @@ onMounted(() => {
       case 'boolean':
         typeConfig.defaultValue = props.field.defaultValue || false;
         break;
-      case 'select':
-        typeConfig.defaultValue = props.field.defaultValue || '';
-        typeConfig.options = [...props.field.options];
+      case 'select': {
+        const selectField = props.field as any;
+        typeConfig.selectValueType = selectField.valueType || 'string';
+        typeConfig.defaultValue = selectField.defaultValue ?? '';
+        typeConfig.options = (selectField.options || []).map((o: any) => ({ label: o.label, value: o.value }));
         break;
+      }
       case 'reward':
         typeConfig.defaultValue = props.field.defaultValue 
           ? { ...props.field.defaultValue } 
@@ -1098,8 +1330,9 @@ onMounted(() => {
               typeConfig.elementConstraints.defaultValue = elem.defaultValue || false;
               break;
             case 'select':
-              typeConfig.elementConstraints.defaultValue = elem.defaultValue || '';
-              typeConfig.elementConstraints.options = elem.options ? [...elem.options] : [];
+              typeConfig.elementConstraints.defaultValue = elem.defaultValue ?? '';
+              typeConfig.elementConstraints.selectValueType = elem.valueType || 'string';
+              typeConfig.elementConstraints.options = (elem.options || []).map((o: any) => ({ label: o.label, value: o.value }));
               break;
             case 'reward':
               typeConfig.elementConstraints.defaultValue = elem.defaultValue 
@@ -1111,21 +1344,39 @@ onMounted(() => {
           resetElementConstraints();
         }
         break;
-      case 'object':
-        typeConfig.properties = props.field.properties.map(p => {
+      case 'object': {
+        const rawProps = (props.field as any).properties;
+        typeConfig.properties = (Array.isArray(rawProps) ? rawProps : []).map((p: any) => {
           const prop: any = {
             key: p.key,
             name: p.name,
             type: p.type,
             nestedDef: null,
           };
-          // 保存完整的嵌套定义
           if (p.type === 'array' || p.type === 'object') {
             prop.nestedDef = JSON.parse(JSON.stringify(p));
+          } else {
+            // 基本类型：从字段定义恢复 constraints（含下拉的 valueType/options）
+            if (p.type === 'select') {
+              prop.constraints = {
+                defaultValue: p.defaultValue ?? '',
+                selectValueType: p.valueType || 'string',
+                options: (p.options || []).map((o: any) => ({ label: o.label, value: o.value })),
+              };
+            } else if (p.type === 'number') {
+              prop.constraints = { defaultValue: p.defaultValue ?? 0, min: p.min, max: p.max, step: p.step };
+            } else if (p.type === 'string') {
+              prop.constraints = { defaultValue: p.defaultValue ?? '', maxLength: p.maxLength };
+            } else if (p.type === 'boolean') {
+              prop.constraints = { defaultValue: p.defaultValue ?? false };
+            } else if (p.type === 'reward') {
+              prop.constraints = { defaultValue: p.defaultValue ? { ...p.defaultValue } : { id: '', count: 1 } };
+            }
           }
           return prop;
         });
         break;
+      }
     }
   }
 });
@@ -1148,7 +1399,7 @@ function handleSave() {
     }
   }
 
-  // 验证对象属性类型为下拉时必须有选项
+  // 验证对象属性类型为下拉时必须有选项且显示文本与实际值互斥
   if (form.type === 'object') {
     for (const prop of typeConfig.properties) {
       if (prop.type === 'select') {
@@ -1156,7 +1407,20 @@ function handleSave() {
           alert(`对象属性 "${prop.name || prop.key}" 的类型为下拉时，至少需要一个选项`);
           return;
         }
+        const err = validateSelectOptions(prop.constraints.options, prop.constraints.selectValueType || 'string');
+        if (err) {
+          alert(`对象属性 "${prop.name || prop.key}" 下拉选项：${err}`);
+          return;
+        }
       }
+    }
+  }
+  // 验证数组元素类型为下拉时选项互斥
+  if (form.type === 'array' && typeConfig.elementType === 'select') {
+    const err = validateSelectOptions(typeConfig.elementConstraints.options || [], typeConfig.elementConstraints.selectValueType || 'string');
+    if (err) {
+      alert(`数组元素下拉选项：${err}`);
+      return;
     }
   }
 
@@ -1198,17 +1462,32 @@ function handleSave() {
         defaultValue: typeConfig.defaultValue || false,
       };
       break;
-    case 'select':
+    case 'select': {
+      if (selectOptionsError.value) {
+        alert(selectOptionsError.value);
+        return;
+      }
+      const valueType = typeConfig.selectValueType;
+      const options = typeConfig.options.map((opt: {label: string; value: string|number}) => ({
+        label: opt.label,
+        value: valueType === 'number'
+          ? (opt.value === '' ? undefined : Number(opt.value))
+          : String(opt.value),
+      })).filter((opt: {label: string; value: string|number|undefined}) => opt.value !== undefined && opt.value !== '' && (valueType !== 'number' || !Number.isNaN(opt.value as number)));
       field = {
         type: 'select',
         key: form.key,
         name: form.name,
         desc: form.desc || undefined,
         required: form.required || undefined,
-        options: typeConfig.options,
-        defaultValue: typeConfig.defaultValue || undefined,
+        valueType,
+        options,
+        defaultValue: typeConfig.defaultValue !== '' && typeConfig.defaultValue !== undefined
+          ? (valueType === 'number' ? Number(typeConfig.defaultValue) : String(typeConfig.defaultValue))
+          : undefined,
       };
       break;
+    }
     case 'reward':
       field = {
         type: 'reward',
@@ -1338,6 +1617,7 @@ function handleSave() {
   font-size: 13px;
 }
 
+
 .form-select {
   cursor: pointer;
   appearance: none;
@@ -1345,6 +1625,18 @@ function handleSave() {
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: 32px;
+  max-width: 320px;
+  min-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.form-select option {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .form-select option {
@@ -1392,6 +1684,7 @@ function handleSave() {
   border-radius: 6px;
   padding: 16px;
   margin-top: 8px;
+  min-width: 0;
 }
 
 .config-title {
@@ -1433,6 +1726,7 @@ function handleSave() {
 /* 选项列表 */
 .options-list {
   margin-top: 12px;
+  min-width: 0;
 }
 
 .options-header {
@@ -1442,6 +1736,12 @@ function handleSave() {
   margin-bottom: 10px;
   font-size: 13px;
   color: #999;
+}
+
+.options-list-actions {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .btn-small {
@@ -1484,21 +1784,29 @@ function handleSave() {
   padding: 10px;
   background: rgba(0, 0, 0, 0.2);
   border-radius: 6px;
+  min-width: 0;
+  overflow: visible;
 }
 
 .property-row {
   display: flex;
   gap: 8px;
   align-items: center;
+  min-width: 0;
 }
 
 .property-row .form-input {
   flex: 1;
+  min-width: 0;
 }
 
 .property-row .form-select-small {
   width: 100px;
-  flex: none;
+  flex: 0 0 100px;
+}
+
+.property-row .btn-icon {
+  flex-shrink: 0;
 }
 
 .property-nested-preview {
@@ -1510,13 +1818,155 @@ function handleSave() {
   color: #4fc3f7;
 }
 
+.property-nested-preview-clickable {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.property-nested-preview-clickable:hover {
+  background: rgba(79, 195, 247, 0.2);
+}
+
 /* 属性约束配置 */
 .property-constraints {
-  margin-top: 8px;
-  padding: 12px;
-  background: rgba(79, 195, 247, 0.05);
-  border: 1px solid rgba(79, 195, 247, 0.2);
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: rgba(79, 195, 247, 0.06);
+  border: 1px solid rgba(79, 195, 247, 0.25);
   border-radius: 6px;
+  min-width: 0;
+}
+
+.constraint-caption {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(79, 195, 247, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(79, 195, 247, 0.15);
+}
+
+.constraint-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  min-width: 0;
+}
+
+.constraint-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  min-width: 0;
+}
+
+.constraint-row label {
+  flex: 0 0 72px;
+  font-size: 12px;
+  color: #999;
+  font-weight: 400;
+}
+
+.constraint-row .constraint-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 6px 10px;
+  height: 32px;
+}
+
+.constraint-row .form-select.constraint-input {
+  padding-right: 28px;
+}
+
+/* 约束区数字输入：隐藏 spinner，避免“不限”等文字与箭头挤在一起超框 */
+.constraint-row input[type="number"].constraint-input::-webkit-inner-spin-button,
+.constraint-row input[type="number"].constraint-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+.constraint-row input[type="number"].constraint-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.constraint-row-wide {
+  grid-column: 1 / -1;
+}
+
+.constraint-row-full {
+  grid-column: 1 / -1;
+}
+
+.constraint-row-full .checkbox-label {
+  flex: none;
+}
+
+.constraint-options-full {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+.constraint-options .constraint-options-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #999;
+}
+
+.constraint-option-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.constraint-option-item .form-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.form-input-tiny {
+  font-size: 11px;
+  padding: 4px 8px;
+  height: 26px;
+}
+
+.btn-tiny {
+  padding: 2px 8px;
+  font-size: 11px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(79, 195, 247, 0.25);
+  color: #4fc3f7;
+  cursor: pointer;
+}
+
+.btn-tiny:hover {
+  background: rgba(79, 195, 247, 0.4);
+}
+
+.btn-icon-tiny {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.btn-icon-tiny:hover {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
 }
 
 /* 嵌套配置区域 */
@@ -1593,11 +2043,36 @@ function handleSave() {
   background: rgba(244, 67, 54, 0.2);
 }
 
+/* 上下移动按钮 */
+.btn-move-up, .btn-move-down {
+  margin: 0 2px;
+  background: #222;
+  color: #4fc3f7;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+.btn-move-up:disabled, .btn-move-down:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .options-empty {
   text-align: center;
   padding: 20px;
   color: #666;
   font-size: 13px;
+}
+
+.options-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #f44336;
+  background: rgba(244, 67, 54, 0.1);
+  border-radius: 4px;
 }
 
 .options-required {

@@ -2,20 +2,32 @@
   <div class="data-editor-container">
     <!-- 头部 -->
     <header class="editor-header">
-      <button class="btn btn-back" @click="$emit('back')">
-        ← 返回
-      </button>
+      <button class="btn btn-back" @click="$emit('back')">← 返回</button>
       <div class="header-info">
         <h1>📊 {{ tableName }}</h1>
         <span class="table-desc" v-if="tableDesc">{{ tableDesc }}</span>
       </div>
       <div class="header-spacer"></div>
+      <button
+        class="btn btn-outline"
+        @click="handlePreviewAll"
+        :disabled="!table || dataList.length === 0"
+        title="预览当前表全部数据"
+      >
+        👁 预览
+      </button>
+      <button
+        class="btn btn-outline"
+        @click="handleExport"
+        :disabled="!table || dataList.length === 0"
+        title="导出当前数据表"
+      >
+        📤 导出数据
+      </button>
       <button class="btn btn-primary" @click="handleAddData">
         ➕ 新增数据
       </button>
-      <button class="btn btn-success" @click="handleSave">
-        💾 保存
-      </button>
+      <button class="btn btn-success" @click="handleSave">💾 保存</button>
     </header>
 
     <!-- 加载中 -->
@@ -32,13 +44,15 @@
           <thead>
             <tr>
               <th class="col-index">#</th>
-              <th 
-                v-for="field in table.fields" 
+              <th
+                v-for="field in table.fields"
                 :key="field.key"
                 :class="`col-${field.type}`"
               >
                 {{ field.name }}
-                <span class="field-type">({{ getFieldTypeName(field.type) }})</span>
+                <span class="field-type"
+                  >({{ getFieldTypeName(field.type) }})</span
+                >
               </th>
               <th class="col-actions">操作</th>
             </tr>
@@ -46,8 +60,8 @@
           <tbody>
             <tr v-for="(item, idx) in dataList" :key="item.key">
               <td class="data-index">{{ idx + 1 }}</td>
-              <td 
-                v-for="field in table.fields" 
+              <td
+                v-for="field in table.fields"
                 :key="field.key"
                 class="data-cell"
               >
@@ -56,10 +70,25 @@
                 </div>
               </td>
               <td class="data-actions">
-                <button class="btn-action btn-edit" @click="handleEditData(item)">
+                <button
+                  class="btn-action btn-preview"
+                  @click="handlePreviewRow(item)"
+                  title="预览当前行数据"
+                >
+                  👁
+                </button>
+                <button
+                  class="btn-action btn-edit"
+                  @click="handleEditData(item)"
+                  title="编辑"
+                >
                   ✏️
                 </button>
-                <button class="btn-action btn-delete" @click="handleDeleteData(item)">
+                <button
+                  class="btn-action btn-delete"
+                  @click="handleDeleteData(item)"
+                  title="删除"
+                >
                   🗑️
                 </button>
               </td>
@@ -82,21 +111,25 @@
     </div>
 
     <!-- 数据编辑对话框 -->
-    <div v-if="showDataDialog" class="dialog-overlay" @click.self="showDataDialog = false">
+    <div
+      v-if="showDataDialog"
+      class="dialog-overlay"
+      @click.self="showDataDialog = false"
+    >
       <div class="dialog-container">
         <div class="dialog-header">
-          <h2>{{ editingDataKey ? '编辑数据' : '新增数据' }}</h2>
+          <h2>{{ editingDataKey ? "编辑数据" : "新增数据" }}</h2>
           <button class="btn-close" @click="showDataDialog = false">✕</button>
         </div>
-        
+
         <div class="dialog-content">
           <div class="form-group">
             <label class="form-label">
               数据 Key <span class="required">*</span>
             </label>
-            <input 
-              v-model="editingData.key" 
-              type="text" 
+            <input
+              v-model="editingData.key"
+              type="text"
               class="form-input"
               placeholder="唯一标识符"
               :disabled="!!editingDataKey"
@@ -104,22 +137,21 @@
           </div>
 
           <!-- 字段编辑 -->
-          <div 
-            v-for="field in table?.fields" 
+          <div
+            v-for="field in table?.fields"
             :key="field.key"
             class="form-group"
           >
             <label class="form-label">
               {{ field.name }}
               <span v-if="field.required" class="required">*</span>
-              <span class="field-type-tag">{{ getFieldTypeName(field.type) }}</span>
+              <span class="field-type-tag">{{
+                getFieldTypeName(field.type)
+              }}</span>
             </label>
-            
+
             <!-- 根据字段类型渲染不同的输入控件 -->
-            <FieldInput
-              v-model="editingData.info[field.key]"
-              :field="field"
-            />
+            <FieldInput v-model="editingData.info[field.key]" :field="field" />
           </div>
         </div>
 
@@ -129,15 +161,64 @@
         </div>
       </div>
     </div>
+
+    <!-- 预览对话框（与导出数据格式一致） -->
+    <div
+      v-if="showPreviewDialog"
+      class="dialog-overlay"
+      @click.self="showPreviewDialog = false"
+    >
+      <div class="dialog-container dialog-preview">
+        <div class="dialog-header">
+          <h2>{{ previewTitle }}</h2>
+          <button class="btn-close" @click="showPreviewDialog = false">
+            ✕
+          </button>
+        </div>
+        <div class="dialog-content preview-content">
+          <pre class="preview-json">{{ previewContent }}</pre>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn btn-primary" @click="showPreviewDialog = false">
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { dataManager, getFieldTypeName } from '../utils/dataManager';
-import { getDefaultValue } from '../utils/fieldFactory';
-import type { ITableDef } from '../utils/types';
-import FieldInput from './FieldInput.vue';
+import { computed, onMounted, ref } from "vue";
+import { api, getPlatform } from "../api";
+import { dataManager, getFieldTypeName } from "../utils/dataManager";
+import { getDefaultValue } from "../utils/fieldFactory";
+import type { IFieldDef, ITableDef } from "../utils/types";
+import FieldInput from "./FieldInput.vue";
+
+/** 导出时按下拉 valueType 将对应字段转为 string 或 number */
+function coerceInfoForExport(
+  info: Record<string, any>,
+  fields: IFieldDef[],
+): Record<string, any> {
+  const out = JSON.parse(JSON.stringify(info));
+  for (const f of fields) {
+    if (f.type === "select" && f.key in out) {
+      const vt = (f as any).valueType || "string";
+      const v = out[f.key];
+      if (v === null || v === undefined) continue;
+      out[f.key] = vt === "number" ? Number(v) : String(v);
+    }
+  }
+  return out;
+}
+
+/** 导出/预览用：单条数据项（与导出文件格式一致） */
+export interface IExportDataItem {
+  key: string;
+  index: number;
+  info: Record<string, any>;
+}
 
 // Props
 const props = defineProps<{
@@ -145,29 +226,32 @@ const props = defineProps<{
 }>();
 
 // Emits
-const emit = defineEmits(['back', 'saved']);
+const emit = defineEmits(["back", "saved"]);
 
 // 状态
 const loading = ref(true);
 const table = ref<ITableDef | undefined>(undefined);
 const showDataDialog = ref(false);
+const showPreviewDialog = ref(false);
+const previewTitle = ref("数据预览");
+const previewContent = ref("");
 const editingDataKey = ref<string | undefined>(undefined);
 const editingData = ref<{ key: string; info: Record<string, any> }>({
-  key: '',
-  info: {}
+  key: "",
+  info: {},
 });
 
 // 计算属性
-const tableName = computed(() => table.value?.name || '');
-const tableDesc = computed(() => table.value?.desc || '');
+const tableName = computed(() => table.value?.name || "");
+const tableDesc = computed(() => table.value?.desc || "");
 const dataList = computed(() => {
   if (!table.value) return [];
-  
+
   return Object.entries(table.value.data)
     .map(([key, value]) => ({
       key,
       index: value.index,
-      info: value.info
+      info: value.info,
     }))
     .sort((a, b) => a.index - b.index);
 });
@@ -182,13 +266,13 @@ function loadTable() {
   try {
     loading.value = true;
     if (!props.tableKey) {
-      console.error('[DataEditor] tableKey 为空');
+      console.error("[DataEditor] tableKey 为空");
       return;
     }
     table.value = dataManager.getTable(props.tableKey);
-    console.log('[DataEditor] 表已加载:', props.tableKey, table.value);
+    console.log("[DataEditor] 表已加载:", props.tableKey, table.value);
   } catch (err) {
-    console.error('[DataEditor] 加载表失败:', err);
+    console.error("[DataEditor] 加载表失败:", err);
   } finally {
     loading.value = false;
   }
@@ -196,17 +280,17 @@ function loadTable() {
 
 // ==================== 格式化单元格值 ====================
 function formatCellValue(value: any, fieldType: string): string {
-  if (value === null || value === undefined) return '-';
-  
+  if (value === null || value === undefined) return "-";
+
   switch (fieldType) {
-    case 'boolean':
-      return value ? '✓' : '✗';
-    case 'array':
-      return Array.isArray(value) ? `[${value.length} 项]` : '-';
-    case 'object':
-      return typeof value === 'object' ? '{对象}' : '-';
-    case 'reward':
-      return value.id ? `${value.id} x${value.count}` : '-';
+    case "boolean":
+      return value ? "✓" : "✗";
+    case "array":
+      return Array.isArray(value) ? `[${value.length} 项]` : "-";
+    case "object":
+      return typeof value === "object" ? "{对象}" : "-";
+    case "reward":
+      return value.id ? `${value.id} x${value.count}` : "-";
     default:
       return String(value);
   }
@@ -217,7 +301,7 @@ function handleAddData() {
   editingDataKey.value = undefined;
   editingData.value = {
     key: `item_${Date.now()}`,
-    info: createDefaultInfo()
+    info: createDefaultInfo(),
   };
   showDataDialog.value = true;
 }
@@ -227,27 +311,30 @@ function handleEditData(item: { key: string; info: Record<string, any> }) {
   editingDataKey.value = item.key;
   editingData.value = {
     key: item.key,
-    info: JSON.parse(JSON.stringify(item.info)) // 深拷贝
+    info: JSON.parse(JSON.stringify(item.info)), // 深拷贝
   };
   showDataDialog.value = true;
 }
 
 // ==================== 删除数据 ====================
-async function handleDeleteData(item: { key: string; info: Record<string, any> }) {
+async function handleDeleteData(item: {
+  key: string;
+  info: Record<string, any>;
+}) {
   if (!confirm(`确定要删除数据 "${item.key}" 吗？`)) {
     return;
   }
 
   try {
     if (!table.value) return;
-    
+
     delete table.value.data[item.key];
     await dataManager.save();
-    
-    console.log('[DataEditor] 数据已删除:', item.key);
+
+    console.log("[DataEditor] 数据已删除:", item.key);
   } catch (err) {
-    console.error('[DataEditor] 删除数据失败:', err);
-    alert('删除失败: ' + (err as Error).message);
+    console.error("[DataEditor] 删除数据失败:", err);
+    alert("删除失败: " + (err as Error).message);
   }
 }
 
@@ -255,10 +342,10 @@ async function handleDeleteData(item: { key: string; info: Record<string, any> }
 async function handleSaveData() {
   try {
     if (!table.value) return;
-    
+
     // 验证 key
     if (!editingData.value.key.trim()) {
-      alert('请输入数据 Key');
+      alert("请输入数据 Key");
       return;
     }
 
@@ -270,20 +357,21 @@ async function handleSaveData() {
 
     // 保存数据
     const dataKey = editingDataKey.value || editingData.value.key;
-    const currentIndex = table.value.data[dataKey]?.index ?? Object.keys(table.value.data).length;
-    
+    const currentIndex =
+      table.value.data[dataKey]?.index ?? Object.keys(table.value.data).length;
+
     table.value.data[dataKey] = {
       index: currentIndex,
-      info: editingData.value.info
+      info: editingData.value.info,
     };
 
     await dataManager.save();
-    
+
     showDataDialog.value = false;
-    console.log('[DataEditor] 数据已保存:', dataKey);
+    console.log("[DataEditor] 数据已保存:", dataKey);
   } catch (err) {
-    console.error('[DataEditor] 保存数据失败:', err);
-    alert('保存失败: ' + (err as Error).message);
+    console.error("[DataEditor] 保存数据失败:", err);
+    alert("保存失败: " + (err as Error).message);
   }
 }
 
@@ -291,24 +379,117 @@ async function handleSaveData() {
 async function handleSave() {
   try {
     await dataManager.save();
-    alert('保存成功！');
-    emit('saved');
+    alert("保存成功！");
+    emit("saved");
   } catch (err) {
-    console.error('[DataEditor] 保存失败:', err);
-    alert('保存失败: ' + (err as Error).message);
+    console.error("[DataEditor] 保存失败:", err);
+    alert("保存失败: " + (err as Error).message);
+  }
+}
+
+// ==================== 导出/预览数据（格式一致） ====================
+/** 构建与导出文件一致的数据结构（下拉按 valueType 转为 string/number） */
+function getExportPayload(): Record<string, any> | null {
+  if (!table.value || !props.tableKey) return null;
+  const fields = table.value.fields || [];
+  const list = dataList.value.map((item) => ({
+    key: item.key,
+    index: item.index,
+    info: coerceInfoForExport(item.info, fields),
+  }));
+  const data: Record<string, Record<string, any>> = {};
+  list.forEach((item) => {
+    data[item.key] = item.info;
+  });
+  return data;
+}
+
+/** 单行数据（预览行时用，与导出中一条一致；下拉按 valueType 转换） */
+function getExportDataForRow(item: {
+  key: string;
+  index: number;
+  info: Record<string, any>;
+}): IExportDataItem {
+  const fields = table.value?.fields || [];
+  return {
+    key: item.key,
+    index: item.index,
+    info: coerceInfoForExport(item.info, fields),
+  };
+}
+
+// ==================== 预览 ====================
+function handlePreviewRow(item: {
+  key: string;
+  index: number;
+  info: Record<string, any>;
+}) {
+  const one = getExportDataForRow(item);
+  previewTitle.value = `预览：${item.key}`;
+  previewContent.value = JSON.stringify(one.info, null, 4);
+  showPreviewDialog.value = true;
+}
+
+function handlePreviewAll() {
+  const payload = getExportPayload();
+  if (!payload) return;
+  previewTitle.value = `预览：${props.tableKey}（全部 ${Object.keys(payload).length} 条）`;
+  previewContent.value = JSON.stringify(payload, null, 4);
+  showPreviewDialog.value = true;
+}
+
+// ==================== 导出（按平台） ====================
+async function handleExport() {
+  const payload = getExportPayload();
+  if (!payload) return;
+  const jsonStr = JSON.stringify(payload);
+  const buffer = new TextEncoder().encode(jsonStr).buffer;
+  const defaultName = `${props.tableKey || "data"}.json`;
+  const platform = getPlatform();
+
+  try {
+    if (platform === "cocos-v2" || platform === "cocos-v3") {
+      // Cocos 编辑器：弹窗选择保存路径后写入
+      const path = await api.selectSavePath?.({
+        title: "导出当前数据表",
+        defaultName,
+        extensions: ["json"],
+      });
+      if (!path) return;
+      const ok = await api.writeBinaryFile(path, buffer);
+      if (ok) alert("导出成功！");
+      else alert("导出失败");
+      return;
+    }
+    if (platform === "standalone") {
+      // 网页/独立：触发下载或 File System Access API
+      const ok = await api.writeBinaryFile(defaultName, buffer);
+      if (ok) alert("导出成功！");
+      else alert("导出失败");
+      return;
+    }
+    if (platform === "electron") {
+      // Electron：后续实现
+      alert("Electron 导出功能即将支持，请先在 Cocos 编辑器或网页中使用导出。");
+      return;
+    }
+    alert("当前环境暂不支持导出");
+  } catch (err) {
+    console.error("[DataEditor] 导出失败:", err);
+    alert("导出失败: " + (err as Error).message);
   }
 }
 
 // ==================== 创建默认信息 ====================
 function createDefaultInfo(): Record<string, any> {
   if (!table.value) return {};
-  
+
   const info: Record<string, any> = {};
-  
-  table.value.fields.forEach(field => {
+
+  table.value.fields.forEach((field) => {
     info[field.key] = getDefaultValue(field);
   });
-  
+
   return info;
 }
 </script>
@@ -370,6 +551,27 @@ function createDefaultInfo(): Record<string, any> {
 .btn:hover {
   background: #4e4e52;
   border-color: #666;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:disabled:hover {
+  background: #3e3e42;
+  border-color: #555;
+}
+
+.btn-outline {
+  background: transparent;
+  border-color: #666;
+  color: #cccccc;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: #3e3e42;
+  border-color: #888;
 }
 
 .btn-back {
@@ -447,7 +649,7 @@ function createDefaultInfo(): Record<string, any> {
 }
 
 .col-actions {
-  width: 120px;
+  width: 140px;
   text-align: center;
 }
 
@@ -504,6 +706,11 @@ function createDefaultInfo(): Record<string, any> {
   color: #f44336;
 }
 
+.btn-preview:hover {
+  border-color: #9c27b0;
+  color: #ce93d8;
+}
+
 /* 空状态 */
 .empty-state {
   text-align: center;
@@ -540,7 +747,9 @@ function createDefaultInfo(): Record<string, any> {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 错误面板 */
@@ -551,6 +760,33 @@ function createDefaultInfo(): Record<string, any> {
   align-items: center;
   justify-content: center;
   gap: 20px;
+}
+
+/* 预览对话框 */
+.dialog-preview .dialog-container {
+  max-width: 720px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-content {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+  min-height: 200px;
+}
+
+.preview-json {
+  margin: 0;
+  padding: 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #d4d4d4;
+  background: #1e1e1e;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* 对话框 */

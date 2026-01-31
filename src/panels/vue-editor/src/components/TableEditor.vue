@@ -111,9 +111,6 @@
         <div class="form-section">
           <div class="section-header">
             <h3 class="section-title">📐 字段定义</h3>
-            <button class="btn btn-add-field" @click="handleAddField">
-              ➕ 添加字段
-            </button>
           </div>
 
           <!-- 字段列表 -->
@@ -155,7 +152,14 @@
           <!-- 空状态 -->
           <div v-else class="fields-empty">
             <p>暂无字段定义</p>
-            <p class="tip">点击"添加字段"按钮创建字段</p>
+            <p class="tip">点击下方"添加字段"按钮创建字段</p>
+          </div>
+
+          <!-- 添加字段按钮（放在列表下方，无需上移点击） -->
+          <div class="fields-list-actions">
+            <button class="btn btn-add-field" @click="handleAddField">
+              ➕ 添加字段
+            </button>
           </div>
         </div>
       </div>
@@ -728,6 +732,12 @@ function closeFieldDialog() {
 
 .fields-empty .tip {
   font-size: 13px;
+}
+
+.fields-list-actions {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* 对话框 */

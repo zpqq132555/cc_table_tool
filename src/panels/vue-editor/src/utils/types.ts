@@ -65,6 +65,8 @@ export interface ISelectField extends IFieldBase {
     options: ISelectOption[];
     /** 默认值 */
     defaultValue?: string | number;
+    /** 实际值类型：数字则用户只能选/填数字，导出时为 number；字符串则为 string */
+    valueType?: 'string' | 'number';
 }
 
 /** 奖励字段 (固定结构: {id: string, count: number}) */

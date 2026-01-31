@@ -77,7 +77,7 @@
           :key="opt.value"
           class="select-option"
           :class="{ 
-            'is-selected': inputValue === opt.value,
+            'is-selected': selectValueEqual(inputValue, opt.value),
             'is-highlighted': highlightedIndex === Number(idx)
           }"
           @click="handleSelectOption(opt.value)"
@@ -289,7 +289,7 @@ function handleSelectFocus() {
     showSelectDropdown.value = true;
     // 设置当前选中项为高亮
     const options = getSelectOptions();
-    const currentIndex = options.findIndex(opt => opt.value === props.modelValue);
+    const currentIndex = options.findIndex(opt => selectValueEqual(opt.value, props.modelValue));
     highlightedIndex.value = currentIndex >= 0 ? currentIndex + 1 : 0;
   }
 }
@@ -430,10 +430,15 @@ function handleSelectOption(value: any) {
   showSelectDropdown.value = false;
 }
 
+/** 下拉值相等（数字/字符串兼容：1 与 "1" 视为相等） */
+function selectValueEqual(a: any, b: any): boolean {
+  return a == b;
+}
+
 function getSelectLabel(value: any): string {
   const field = props.field as any;
   if (!field.options) return '';
-  const option = field.options.find((opt: any) => opt.value === value);
+  const option = field.options.find((opt: any) => selectValueEqual(opt.value, value));
   return option ? option.label : '';
 }
 </script>
