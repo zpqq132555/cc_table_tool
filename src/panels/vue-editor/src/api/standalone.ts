@@ -8,6 +8,45 @@ import type { IEditorApi, Platform } from './index';
 // 文件句柄缓存（File System Access API）
 const fileHandleCache = new Map<string, FileSystemFileHandle>();
 
+// 目录句柄缓存（用于批量导出）
+let lastDirHandle: FileSystemDirectoryHandle | null = null;
+
+/**
+ * 选择目录并批量写入文件（浏览器 File System Access API）
+ * @param files 文件名与内容的数组
+ * @returns 成功写入的数量
+ */
+export async function selectDirAndWriteFiles(
+    files: { name: string; data: ArrayBuffer }[],
+): Promise<{ success: number; fail: number }> {
+    if (!('showDirectoryPicker' in window)) {
+        console.warn('[Standalone] 浏览器不支持 showDirectoryPicker');
+        return { success: 0, fail: files.length };
+    }
+    try {
+        const dirHandle: FileSystemDirectoryHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+        lastDirHandle = dirHandle;
+        let success = 0;
+        let fail = 0;
+        for (const f of files) {
+            try {
+                const fileHandle = await dirHandle.getFileHandle(f.name, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(f.data);
+                await writable.close();
+                success++;
+            } catch (err) {
+                console.error(`[Standalone] 写入文件 ${f.name} 失败:`, err);
+                fail++;
+            }
+        }
+        return { success, fail };
+    } catch (err) {
+        console.error('[Standalone] 选择目录失败:', err);
+        return { success: 0, fail: files.length };
+    }
+}
+
 export const standaloneApi: IEditorApi = {
     platform: 'standalone' as Platform,
     
@@ -137,7 +176,8 @@ export const standaloneApi: IEditorApi = {
     async selectDirectory(options) {
         try {
             if ('showDirectoryPicker' in window) {
-                const handle = await (window as any).showDirectoryPicker();
+                const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+                lastDirHandle = handle;
                 return handle.name;
             }
             

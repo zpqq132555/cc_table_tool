@@ -44,6 +44,7 @@
           <thead>
             <tr>
               <th class="col-index">#</th>
+              <th class="col-display-name">显示名称</th>
               <th
                 v-for="field in table.fields"
                 :key="field.key"
@@ -60,6 +61,9 @@
           <tbody>
             <tr v-for="(item, idx) in dataList" :key="item.key">
               <td class="data-index">{{ idx + 1 }}</td>
+              <td class="data-display-name">
+                <div class="cell-content" :title="resolveDisplayName(item)">{{ resolveDisplayName(item) }}</div>
+              </td>
               <td
                 v-for="field in table.fields"
                 :key="field.key"
@@ -134,6 +138,38 @@
               placeholder="唯一标识符"
               :disabled="!!editingDataKey"
             />
+          </div>
+
+          <!-- 显示名称 -->
+          <div class="form-group">
+            <label class="form-label">
+              显示名称
+              <span class="field-type-tag">列表展示用</span>
+            </label>
+            <div class="display-name-editor">
+              <select
+                v-model="editingDisplayMode"
+                class="form-input display-name-select"
+                @change="handleDisplayModeChange"
+              >
+                <option value="">（默认：使用数据 Key）</option>
+                <option
+                  v-for="field in table?.fields"
+                  :key="field.key"
+                  :value="'field:' + field.key"
+                >
+                  字段：{{ field.name }}（{{ field.key }}）
+                </option>
+                <option value="custom">自定义输入</option>
+              </select>
+              <input
+                v-if="editingDisplayMode === 'custom'"
+                v-model="editingDisplayCustom"
+                type="text"
+                class="form-input display-name-input"
+                placeholder="输入自定义显示名称"
+              />
+            </div>
           </div>
 
           <!-- 字段编辑 -->
@@ -241,6 +277,10 @@ const editingData = ref<{ key: string; info: Record<string, any> }>({
   info: {},
 });
 
+// 显示名称编辑状态
+const editingDisplayMode = ref<string>(""); // '' | 'field:xxx' | 'custom'
+const editingDisplayCustom = ref<string>("");
+
 // 计算属性
 const tableName = computed(() => table.value?.name || "");
 const tableDesc = computed(() => table.value?.desc || "");
@@ -278,6 +318,30 @@ function loadTable() {
   }
 }
 
+// ==================== 解析显示名称 ====================
+function resolveDisplayName(item: { key: string; info: Record<string, any> }): string {
+  if (!table.value) return item.key;
+  const dataItem = table.value.data[item.key];
+  const dn = dataItem?.displayName;
+  if (!dn || !dn.value) return item.key;
+  if (dn.mode === 'field') {
+    const val = item.info[dn.value];
+    if (val === null || val === undefined || val === '') return item.key;
+    return String(val);
+  }
+  if (dn.mode === 'custom') {
+    return dn.value || item.key;
+  }
+  return item.key;
+}
+
+function handleDisplayModeChange() {
+  // 切换到非 custom 时清空自定义文本
+  if (editingDisplayMode.value !== 'custom') {
+    editingDisplayCustom.value = '';
+  }
+}
+
 // ==================== 格式化单元格值 ====================
 function formatCellValue(value: any, fieldType: string): string {
   if (value === null || value === undefined) return "-";
@@ -303,6 +367,8 @@ function handleAddData() {
     key: `item_${Date.now()}`,
     info: createDefaultInfo(),
   };
+  editingDisplayMode.value = '';
+  editingDisplayCustom.value = '';
   showDataDialog.value = true;
 }
 
@@ -313,6 +379,24 @@ function handleEditData(item: { key: string; info: Record<string, any> }) {
     key: item.key,
     info: JSON.parse(JSON.stringify(item.info)), // 深拷贝
   };
+  // 加载显示名称配置
+  const dataItem = table.value?.data[item.key];
+  const dn = dataItem?.displayName;
+  if (dn && dn.value) {
+    if (dn.mode === 'field') {
+      editingDisplayMode.value = 'field:' + dn.value;
+      editingDisplayCustom.value = '';
+    } else if (dn.mode === 'custom') {
+      editingDisplayMode.value = 'custom';
+      editingDisplayCustom.value = dn.value;
+    } else {
+      editingDisplayMode.value = '';
+      editingDisplayCustom.value = '';
+    }
+  } else {
+    editingDisplayMode.value = '';
+    editingDisplayCustom.value = '';
+  }
   showDataDialog.value = true;
 }
 
@@ -360,8 +444,17 @@ async function handleSaveData() {
     const currentIndex =
       table.value.data[dataKey]?.index ?? Object.keys(table.value.data).length;
 
+    // 构建显示名称配置
+    let displayName: import('../utils/types').IDisplayName | undefined;
+    if (editingDisplayMode.value.startsWith('field:')) {
+      displayName = { mode: 'field', value: editingDisplayMode.value.slice(6) };
+    } else if (editingDisplayMode.value === 'custom' && editingDisplayCustom.value.trim()) {
+      displayName = { mode: 'custom', value: editingDisplayCustom.value.trim() };
+    }
+
     table.value.data[dataKey] = {
       index: currentIndex,
+      displayName,
       info: editingData.value.info,
     };
 
@@ -653,6 +746,18 @@ function createDefaultInfo(): Record<string, any> {
   text-align: center;
 }
 
+.col-display-name {
+  min-width: 120px;
+  max-width: 200px;
+}
+
+.data-display-name {
+  min-width: 120px;
+  max-width: 200px;
+  color: #4fc3f7;
+  font-weight: 500;
+}
+
 .data-index {
   text-align: center;
   color: #888;
@@ -904,5 +1009,19 @@ function createDefaultInfo(): Record<string, any> {
 .form-input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.display-name-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.display-name-select {
+  cursor: pointer;
+}
+
+.display-name-input {
+  margin-top: 0;
 }
 </style>

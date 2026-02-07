@@ -128,10 +128,20 @@ export interface ITableDef {
     data: Record<string, ITableDataItem>;
 }
 
+/** 显示名称配置 */
+export interface IDisplayName {
+    /** 模式：field=引用字段值，custom=自定义字符串 */
+    mode: 'field' | 'custom';
+    /** 字段 key（mode=field）或自定义文本（mode=custom） */
+    value: string;
+}
+
 /** 表数据项 */
 export interface ITableDataItem {
     /** 排序索引 */
     index: number;
+    /** 显示名称配置 */
+    displayName?: IDisplayName;
     /** 实际数据 */
     info: Record<string, any>;
 }

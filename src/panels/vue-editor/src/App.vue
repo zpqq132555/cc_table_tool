@@ -42,6 +42,13 @@
           </button>
         </template>
 
+        <!-- 导出全部按钮（数据加载后显示） -->
+        <template v-if="dataManager.isLoaded">
+          <button class="btn btn-outline-light" @click="handleExportAll" title="导出所有数据表">
+            📤 导出全部
+          </button>
+        </template>
+
         <!-- 非 Cocos 渠道显示按钮 -->
         <template v-if="!isCocos">
           <div class="header-spacer"></div>
@@ -198,6 +205,97 @@ async function handleLoadData() {
     alert("读取数据失败: " + (err as Error).message);
   } finally {
     loading.value = false;
+  }
+}
+
+// ==================== 导出全部数据表 ====================
+/** 导出时按下拉 valueType 将对应字段转为 string 或 number */
+function coerceInfoForExport(
+  info: Record<string, any>,
+  fields: import('./utils/types').IFieldDef[],
+): Record<string, any> {
+  const out = JSON.parse(JSON.stringify(info));
+  for (const f of fields) {
+    if (f.type === 'select' && f.key in out) {
+      const vt = (f as any).valueType || 'string';
+      const v = out[f.key];
+      if (v === null || v === undefined) continue;
+      out[f.key] = vt === 'number' ? Number(v) : String(v);
+    }
+  }
+  return out;
+}
+
+/** 构建单个表的导出数据（与 DataEditor 导出格式一致） */
+function getTableExportPayload(tableKey: string): Record<string, any> | null {
+  const tableDef = dataManager.getTable(tableKey);
+  if (!tableDef) return null;
+  const fields = tableDef.fields || [];
+  const data: Record<string, Record<string, any>> = {};
+  const sortedItems = Object.entries(tableDef.data)
+    .map(([key, value]) => ({ key, index: value.index, info: value.info }))
+    .sort((a, b) => a.index - b.index);
+  for (const item of sortedItems) {
+    data[item.key] = coerceInfoForExport(item.info, fields);
+  }
+  return data;
+}
+
+async function handleExportAll() {
+  try {
+    const tables = dataManager.tableList;
+    if (tables.length === 0) {
+      alert('没有可导出的数据表');
+      return;
+    }
+
+    const plat = getPlatform();
+
+    if (plat === 'cocos-v2' || plat === 'cocos-v3') {
+      // Cocos 编辑器：选择目录，逐表写入
+      const dir = await api.selectDirectory({ title: '选择导出目录（每个表导出为一个 JSON 文件）' });
+      if (!dir) return;
+
+      let successCount = 0;
+      let failCount = 0;
+      for (const t of tables) {
+        const payload = getTableExportPayload(t.key);
+        if (!payload) { failCount++; continue; }
+        const jsonStr = JSON.stringify(payload);
+        const buffer = new TextEncoder().encode(jsonStr).buffer;
+        const filePath = dir + '/' + t.key + '.json';
+        const ok = await api.writeBinaryFile(filePath, buffer);
+        if (ok) successCount++;
+        else failCount++;
+      }
+      alert(`导出完成！成功 ${successCount} 个${failCount > 0 ? `，失败 ${failCount} 个` : ''}`);
+      return;
+    }
+
+    if (plat === 'standalone') {
+      // 浏览器：选择目录后逐表写入
+      const files: { name: string; data: ArrayBuffer }[] = [];
+      for (const t of tables) {
+        const payload = getTableExportPayload(t.key);
+        if (!payload) continue;
+        const jsonStr = JSON.stringify(payload);
+        const buffer = new TextEncoder().encode(jsonStr).buffer;
+        files.push({ name: `${t.key}.json`, data: buffer });
+      }
+      const { selectDirAndWriteFiles } = await import('./api/standalone');
+      const result = await selectDirAndWriteFiles(files);
+      alert(`导出完成！成功 ${result.success} 个${result.fail > 0 ? `，失败 ${result.fail} 个` : ''}`);
+      return;
+    }
+
+    if (plat === 'electron') {
+      alert('Electron 导出功能即将支持，请先在 Cocos 编辑器或网页中使用导出。');
+      return;
+    }
+    alert('当前环境暂不支持导出');
+  } catch (err) {
+    console.error('[App] 导出全部失败:', err);
+    alert('导出全部失败: ' + (err as Error).message);
   }
 }
 
@@ -426,6 +524,17 @@ onMounted(() => {
 
 .btn-secondary:hover {
   background: #1976d2;
+}
+
+.btn-outline-light {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+}
+
+.btn-outline-light:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.6);
 }
 
 .app-main {
