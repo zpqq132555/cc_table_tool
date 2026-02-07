@@ -30,6 +30,8 @@ Table Tool 是一个基于 **Cocos Creator 跨版本插件框架** 开发的 **V
 
 ## 🚀 快速开始
 
+**第一次使用？** 查看 **[快速开始.md](./快速开始.md)** - 5分钟上手指南
+
 ### 安装依赖
 
 ```bash
@@ -48,19 +50,22 @@ cd electron && npm install               # Electron 打包
 # Vue 编辑器独立开发（浏览器访问 http://localhost:5173）
 npm run dev:editor
 
-# Electron 桌面版开发
+# Electron 桌面版开发（同时启动 Vue 编辑器和 Electron）
 npm run dev:electron
+
+# 仅启动 Electron（需先在其他终端运行 dev:editor）
+npm run dev:electron:only
 ```
 
 ### 构建发布
 
 ```bash
-# 构建 Cocos 插件
-npm run build:v2  # 编译 Cocos 2.x 版本
-npm run build:v3  # 编译 Cocos 3.x 版本
+# 构建 Cocos 插件（推荐）
+npm run build:all      # 同时构建 v2 和 v3 版本
 
-# 构建 Vue 编辑器（用于 Cocos 插件）
-npm run build:editor
+# 或分别构建
+npm run build:v2       # 编译 Cocos 2.x 版本（含 Vue 编辑器）
+npm run build:v3       # 编译 Cocos 3.x 版本（含 Vue 编辑器）
 
 # 打包独立 exe
 npm run build:exe
@@ -217,7 +222,25 @@ Tools.BidirectionalSync(dirA, dirB, {
 
 ## 📚 详细文档
 
-请查看 [使用说明.md](使用说明.md) 获取完整的使用文档。
+**📖 完整文档导航** → [文档中心.md](./文档中心.md)
+
+### 核心文档
+
+- **[快速开始.md](./快速开始.md)** - 5分钟上手指南（新手必读 ⭐）
+- **[使用说明.md](./使用说明.md)** - 详细使用指南和功能说明
+- **[项目架构说明.md](./项目架构说明.md)** - 架构设计和核心模块详解
+- **[FAQ.md](./FAQ.md)** - 常见问题与解答（30+ 问题）
+
+### 开发文档
+
+- **[数据管理模块说明](./src/panels/vue-editor/src/utils/README.md)** - 数据管理模块重构说明
+
+### 组件文档
+
+- [ArrayEditor 组件](./src/panels/vue-editor/src/components/ArrayEditor.README.md) - 数组编辑器使用说明
+- [DataEditor 组件](./src/panels/vue-editor/src/components/DataEditor.README.md) - 数据编辑功能说明
+- [FieldConstraints 说明](./src/panels/vue-editor/src/components/FieldConstraints.README.md) - 字段约束与验证
+- [SelectFieldValidation 说明](./src/panels/vue-editor/src/components/SelectFieldValidation.README.md) - 下拉字段验证
 
 ## 🎯 开发计划
 
@@ -229,29 +252,37 @@ Tools.BidirectionalSync(dirA, dirB, {
 - ✅ Vue 数据编辑器基础架构
 - ✅ 多平台适配层（Standalone/Electron/Cocos）
 - ✅ Electron 独立打包配置
+- ✅ 数据管理模块（增删改查、导入导出）
+- ✅ 字段编辑器（支持 8 种字段类型）
+- ✅ 数组编辑器（支持定长/不定长数组）
+- ✅ 对象编辑器（支持嵌套对象）
+- ✅ 字段约束与验证系统
+- ✅ JSON 导入导出功能
+- ✅ 加密存储（.table 二进制格式）
 
 ### 进行中 🔄
-- 🔄 表格数据编辑功能完善
-- 🔄 数据导入/导出功能
+- 🔄 用户体验优化
+- 🔄 性能优化（大数据量处理）
 
 ### 待开发 📋
-- 📋 Excel 文件导入支持
-- 📋 JSON/CSV 数据格式支持
+- 📋 Excel 文件导入/导出支持
+- 📋 CSV 数据格式支持
 - 📋 数据模板系统
 - 📋 批量编辑功能
-- 📋 数据验证与校验系统
+- 📋 数据关联与引用检查
+- 📋 撤销/重做功能
 
 ## 📝 版本历史
 
-### v1.0.0 (2026-01-27)
-- ✅ 搭建跨版本插件基础框架
-- ✅ 实现版本检测器与适配器工厂
-- ✅ 完成 v2/v3 适配器层
-- ✅ 添加通用工具类（Tools）
-- ✅ 创建 Vue 数据编辑器项目结构
-- ✅ 实现多平台 API 适配层
-- ✅ 配置 Electron 独立打包
-- ✅ 完善项目文档
+### v1.0.0 (2026-02-07)
+- ✅ 跨版本插件基础框架完成
+- ✅ Vue 数据编辑器核心功能完成
+- ✅ 支持 8 种字段类型（string, number, boolean, select, reward, array, object）
+- ✅ 数据加密存储（.table 格式）
+- ✅ JSON 导入导出功能
+- ✅ 多平台运行（Standalone/Electron/Cocos）
+- ✅ 字段约束与验证
+- ✅ 代码重构与模块化（单文件不超过 500 行）
 
 ## 📄 许可证
 
