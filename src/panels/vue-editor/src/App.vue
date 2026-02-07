@@ -44,7 +44,16 @@
 
         <!-- 导出全部按钮（数据加载后显示） -->
         <template v-if="dataManager.isLoaded">
-          <button class="btn btn-outline-light" @click="handleExportAll" title="导出所有数据表">
+          <label class="sync-toggle" title="导出时同步生成 TypeScript Interface 声明文件">
+            <input type="checkbox" v-model="syncInterface" />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span class="toggle-label">同步脚本</span>
+          </label>
+          <button
+            class="btn btn-outline-light"
+            @click="handleExportAll"
+            title="导出所有数据表"
+          >
             📤 导出全部
           </button>
         </template>
@@ -73,8 +82,8 @@
           >
         </div>
         <div class="info-right">
-          <span class="info-path" :title="dataManager.filePath">{{
-            dataManager.filePath
+          <span class="info-path" :title="normalizedPath">{{
+            normalizedPath
           }}</span>
         </div>
       </div>
@@ -132,10 +141,23 @@ import ConfigManage from "./components/ConfigManage.vue";
 import DataEditor from "./components/DataEditor.vue";
 import TableEditor from "./components/TableEditor.vue";
 import { dataManager } from "./utils/dataManager";
+import {
+    generateIndexFile,
+    generateTableInterfaceFile,
+    getInterfaceFileName,
+} from "./utils/InterfaceGenerator";
 
 // 平台信息
 const platform = ref<string>(getPlatform());
 const isCocos = computed(() => platform.value.startsWith("cocos"));
+
+// 同步脚本开关
+const syncInterface = ref(false);
+
+// 路径标准化（统一使用反斜杠）
+const normalizedPath = computed(() => {
+  return dataManager.filePath.replace(/\//g, '\\');
+});
 
 // 加载状态
 const loading = ref(false);
@@ -212,15 +234,15 @@ async function handleLoadData() {
 /** 导出时按下拉 valueType 将对应字段转为 string 或 number */
 function coerceInfoForExport(
   info: Record<string, any>,
-  fields: import('./utils/types').IFieldDef[],
+  fields: import("./utils/types").IFieldDef[],
 ): Record<string, any> {
   const out = JSON.parse(JSON.stringify(info));
   for (const f of fields) {
-    if (f.type === 'select' && f.key in out) {
-      const vt = (f as any).valueType || 'string';
+    if (f.type === "select" && f.key in out) {
+      const vt = (f as any).valueType || "string";
       const v = out[f.key];
       if (v === null || v === undefined) continue;
-      out[f.key] = vt === 'number' ? Number(v) : String(v);
+      out[f.key] = vt === "number" ? Number(v) : String(v);
     }
   }
   return out;
@@ -245,34 +267,47 @@ async function handleExportAll() {
   try {
     const tables = dataManager.tableList;
     if (tables.length === 0) {
-      alert('没有可导出的数据表');
+      alert("没有可导出的数据表");
       return;
     }
 
     const plat = getPlatform();
 
-    if (plat === 'cocos-v2' || plat === 'cocos-v3') {
+    if (plat === "cocos-v2" || plat === "cocos-v3") {
       // Cocos 编辑器：选择目录，逐表写入
-      const dir = await api.selectDirectory({ title: '选择导出目录（每个表导出为一个 JSON 文件）' });
+      const dir = await api.selectDirectory({
+        title: "选择导出目录（每个表导出为一个 JSON 文件）",
+      });
       if (!dir) return;
 
       let successCount = 0;
       let failCount = 0;
       for (const t of tables) {
         const payload = getTableExportPayload(t.key);
-        if (!payload) { failCount++; continue; }
+        if (!payload) {
+          failCount++;
+          continue;
+        }
         const jsonStr = JSON.stringify(payload);
         const buffer = new TextEncoder().encode(jsonStr).buffer;
-        const filePath = dir + '/' + t.key + '.json';
+        const filePath = dir + "\\" + t.key + ".json";
         const ok = await api.writeBinaryFile(filePath, buffer);
         if (ok) successCount++;
         else failCount++;
       }
-      alert(`导出完成！成功 ${successCount} 个${failCount > 0 ? `，失败 ${failCount} 个` : ''}`);
+
+      // 同步脚本：生成 interface 文件
+      if (syncInterface.value) {
+        await generateInterfaceFiles(dir, tables);
+      }
+
+      alert(
+        `导出完成！成功 ${successCount} 个${failCount > 0 ? `，失败 ${failCount} 个` : ""}${syncInterface.value ? "\n已同步生成 Interface 声明文件" : ""}`,
+      );
       return;
     }
 
-    if (plat === 'standalone') {
+    if (plat === "standalone") {
       // 浏览器：选择目录后逐表写入
       const files: { name: string; data: ArrayBuffer }[] = [];
       for (const t of tables) {
@@ -282,21 +317,93 @@ async function handleExportAll() {
         const buffer = new TextEncoder().encode(jsonStr).buffer;
         files.push({ name: `${t.key}.json`, data: buffer });
       }
-      const { selectDirAndWriteFiles } = await import('./api/standalone');
+
+      // 同步脚本：追加 interface 文件
+      if (syncInterface.value) {
+        const tsFiles = buildInterfaceFileList(tables);
+        files.push(...tsFiles);
+      }
+
+      const { selectDirAndWriteFiles } = await import("./api/standalone");
       const result = await selectDirAndWriteFiles(files);
-      alert(`导出完成！成功 ${result.success} 个${result.fail > 0 ? `，失败 ${result.fail} 个` : ''}`);
+      alert(
+        `导出完成！成功 ${result.success} 个${result.fail > 0 ? `，失败 ${result.fail} 个` : ""}${syncInterface.value ? "\n已同步生成 Interface 声明文件" : ""}`,
+      );
       return;
     }
 
-    if (plat === 'electron') {
-      alert('Electron 导出功能即将支持，请先在 Cocos 编辑器或网页中使用导出。');
+    if (plat === "electron") {
+      alert("Electron 导出功能即将支持，请先在 Cocos 编辑器或网页中使用导出。");
       return;
     }
-    alert('当前环境暂不支持导出');
+    alert("当前环境暂不支持导出");
   } catch (err) {
-    console.error('[App] 导出全部失败:', err);
-    alert('导出全部失败: ' + (err as Error).message);
+    console.error("[App] 导出全部失败:", err);
+    alert("导出全部失败: " + (err as Error).message);
   }
+}
+
+// ==================== 生成 Interface 文件 ====================
+/**
+ * 在指定目录生成 interface 声明文件（Cocos / Electron 平台）
+ */
+async function generateInterfaceFiles(
+  dir: string,
+  tables: { key: string; name: string }[],
+) {
+  const items: { key: string; tableDef: import("./utils/types").ITableDef }[] = [];
+
+  for (const t of tables) {
+    const tableDef = dataManager.getTable(t.key);
+    if (!tableDef) continue;
+
+    const content = generateTableInterfaceFile(t.key, tableDef);
+    const fileName = getInterfaceFileName(t.key);
+    const filePath = dir + "\\" + fileName;
+    const buffer = new TextEncoder().encode(content).buffer;
+    await api.writeBinaryFile(filePath, buffer);
+
+    items.push({ key: t.key, tableDef });
+  }
+
+  // 生成 index.ts
+  if (items.length > 0) {
+    const indexContent = generateIndexFile(items);
+    const indexPath = dir + "\\" + "index.ts";
+    const indexBuffer = new TextEncoder().encode(indexContent).buffer;
+    await api.writeBinaryFile(indexPath, indexBuffer);
+  }
+}
+
+/**
+ * 构建 interface 文件列表（Standalone 平台）
+ */
+function buildInterfaceFileList(
+  tables: { key: string; name: string }[],
+): { name: string; data: ArrayBuffer }[] {
+  const files: { name: string; data: ArrayBuffer }[] = [];
+  const items: { key: string; tableDef: import("./utils/types").ITableDef }[] = [];
+
+  for (const t of tables) {
+    const tableDef = dataManager.getTable(t.key);
+    if (!tableDef) continue;
+
+    const content = generateTableInterfaceFile(t.key, tableDef);
+    const fileName = getInterfaceFileName(t.key);
+    const buffer = new TextEncoder().encode(content).buffer;
+    files.push({ name: fileName, data: buffer });
+
+    items.push({ key: t.key, tableDef });
+  }
+
+  // 生成 index.ts
+  if (items.length > 0) {
+    const indexContent = generateIndexFile(items);
+    const indexBuffer = new TextEncoder().encode(indexContent).buffer;
+    files.push({ name: "index.ts", data: indexBuffer });
+  }
+
+  return files;
 }
 
 // ==================== 配置管理 ====================
@@ -381,40 +488,37 @@ async function autoLoadCocosData() {
     while (retries > 0) {
       try {
         const projectPath = await api.getProjectPath?.();
-        if (!projectPath) {
-          throw new Error("projectPath not found");
+        if (projectPath) {
+          console.log("[App] Editor 对象已就绪，项目路径:", projectPath);
+
+          // 构建数据文件路径
+          const dataDir = projectPath + "\\data";
+          const dataFile = dataDir + "\\data.table";
+
+          console.log("[App] 数据文件:", dataFile);
+
+          // 检查目录是否存在
+          const dirExists = await api.exists(dataDir);
+          if (!dirExists) {
+            console.log("[App] 数据目录不存在，创建中...");
+            await api.createDirectory(dataDir);
+          }
+
+          // 检查文件是否存在
+          const fileExists = await api.exists(dataFile);
+
+          if (fileExists) {
+            // 使用数据管理器加载
+            await dataManager.load(dataFile);
+            console.log("[App] 数据加载成功");
+          } else {
+            // 使用数据管理器创建
+            await dataManager.create(dataFile);
+            console.log("[App] 数据创建成功");
+          }
+
+          break; // 成功后退出循环
         }
-        // if (projectPath) {
-        //   console.log("[App] Editor 对象已就绪，项目路径:", projectPath);
-
-        //   // 构建数据文件路径
-        //   const dataDir = projectPath + "/data";
-        //   const dataFile = dataDir + "/data.table";
-
-        //   console.log("[App] 数据文件:", dataFile);
-
-        //   // 检查目录是否存在
-        //   const dirExists = await api.exists(dataDir);
-        //   if (!dirExists) {
-        //     console.log("[App] 数据目录不存在，创建中...");
-        //     await api.createDirectory(dataDir);
-        //   }
-
-        //   // 检查文件是否存在
-        //   const fileExists = await api.exists(dataFile);
-
-        //   if (fileExists) {
-        //     // 使用数据管理器加载
-        //     await dataManager.load(dataFile);
-        //     console.log("[App] 数据加载成功");
-        //   } else {
-        //     // 使用数据管理器创建
-        //     await dataManager.create(dataFile);
-        //     console.log("[App] 数据创建成功");
-        //   }
-
-        //   break; // 成功后退出循环
-        // }
       } catch (err: any) {
         if (err.message.includes("Editor object not found")) {
           console.log(`[App] 等待 Editor 对象注入... (${retries} 次剩余)`);
@@ -535,6 +639,68 @@ onMounted(() => {
 .btn-outline-light:hover {
   background: rgba(255, 255, 255, 0.15);
   border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* 同步脚本开关 */
+.sync-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.sync-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sync-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.toggle-track {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  transition: background 0.25s ease;
+  flex-shrink: 0;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.sync-toggle input:checked + .toggle-track {
+  background: #4caf50;
+}
+
+.sync-toggle input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(16px);
+}
+
+.toggle-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .app-main {

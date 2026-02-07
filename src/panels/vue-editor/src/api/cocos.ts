@@ -128,11 +128,16 @@ export const cocosApi: IEditorApi = {
     },
     
     async readBinaryFile(path: string) {
-        return sendToMain('readBinaryFile', path);
+        const result = await sendToMain('readBinaryFile', path);
+        if (!result) return null;
+        // IPC 传输时 ArrayBuffer 被序列化为普通数组，需要转回
+        return new Uint8Array(result).buffer;
     },
     
     async writeBinaryFile(path: string, data: ArrayBuffer) {
-        return sendToMain('writeBinaryFile', path, data);
+        // 将 ArrayBuffer 转换为普通数组以便 IPC 传输
+        const array = Array.from(new Uint8Array(data));
+        return sendToMain('writeBinaryFile', path, array);
     },
     
     async selectFile(options) {

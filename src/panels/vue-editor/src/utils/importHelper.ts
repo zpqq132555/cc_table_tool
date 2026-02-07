@@ -107,8 +107,24 @@ function createTableFromObject(key: string, data: Record<string, any>, nextIndex
 
 /**
  * 分析数据字段类型
+ * 支持递归解析 array 和 object 的子字段结构
  */
 function analyzeFields(sampleData: any): IFieldDef[] {
+    if (Array.isArray(sampleData)) {
+        // 数据本身是数组时，生成一个 array 类型字段
+        const elementFields = sampleData.length > 0
+            ? analyzeArrayElement(sampleData[0])
+            : { type: 'string' as FieldType, key: 'item', name: 'item' } as IFieldDef;
+
+        return [{
+            type: 'array',
+            key: 'items',
+            name: 'items',
+            element: elementFields,
+            defaultValue: [],
+        } as IFieldDef];
+    }
+
     if (typeof sampleData !== 'object' || sampleData === null) {
         throw new Error('数据格式错误，期望对象类型');
     }
@@ -116,17 +132,91 @@ function analyzeFields(sampleData: any): IFieldDef[] {
     const fields: IFieldDef[] = [];
 
     for (const [key, value] of Object.entries(sampleData)) {
-        const fieldType = detectFieldType(value);
-        
-        fields.push({
-            type: fieldType,
-            key,
-            name: key,
-            defaultValue: getDefaultValue(fieldType, value),
-        } as any);
+        fields.push(buildFieldDef(key, value));
     }
 
     return fields;
+}
+
+/**
+ * 根据值构建字段定义（支持递归）
+ */
+function buildFieldDef(key: string, value: any): IFieldDef {
+    const fieldType = detectFieldType(value);
+
+    switch (fieldType) {
+        case 'array': {
+            const arr = value as any[];
+            const element = arr.length > 0
+                ? analyzeArrayElement(arr[0])
+                : { type: 'string', key: 'item', name: 'item' } as IFieldDef;
+            return {
+                type: 'array',
+                key,
+                name: key,
+                element,
+                defaultValue: [],
+            } as IFieldDef;
+        }
+        case 'object': {
+            const properties = analyzeFields(value);
+            return {
+                type: 'object',
+                key,
+                name: key,
+                properties,
+                defaultValue: {},
+            } as IFieldDef;
+        }
+        default:
+            return {
+                type: fieldType,
+                key,
+                name: key,
+                defaultValue: getDefaultValue(fieldType, value),
+            } as IFieldDef;
+    }
+}
+
+/**
+ * 分析数组元素类型，返回元素的字段定义
+ */
+function analyzeArrayElement(sample: any): IFieldDef {
+    const elemType = detectFieldType(sample);
+
+    switch (elemType) {
+        case 'object': {
+            // 数组元素是对象 → 对象字段，递归子属性
+            const properties = analyzeFields(sample);
+            return {
+                type: 'object',
+                key: 'item',
+                name: 'item',
+                properties,
+                defaultValue: {},
+            } as IFieldDef;
+        }
+        case 'array': {
+            // 数组元素还是数组 → 嵌套数组
+            const inner = (sample as any[]).length > 0
+                ? analyzeArrayElement((sample as any[])[0])
+                : { type: 'string', key: 'item', name: 'item' } as IFieldDef;
+            return {
+                type: 'array',
+                key: 'item',
+                name: 'item',
+                element: inner,
+                defaultValue: [],
+            } as IFieldDef;
+        }
+        default:
+            return {
+                type: elemType,
+                key: 'item',
+                name: 'item',
+                defaultValue: getDefaultValue(elemType, sample),
+            } as IFieldDef;
+    }
 }
 
 /**

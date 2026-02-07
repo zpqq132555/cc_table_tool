@@ -71,10 +71,11 @@ class ExtensionsToolsPlugin extends BasePlugin {
 
     /** 读取二进制文件 */
     @MessageMethod
-    async readBinaryFile(filePath: string): Promise<ArrayBuffer | null> {
+    async readBinaryFile(filePath: string): Promise<number[] | null> {
         try {
             const buffer = fs.readFileSync(filePath);
-            return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+            // 转换为普通数组，以便 IPC 序列化
+            return Array.from(buffer);
         } catch (err) {
             this.error(`读取文件失败: ${filePath}`, err);
             return null;
@@ -83,9 +84,10 @@ class ExtensionsToolsPlugin extends BasePlugin {
 
     /** 写入二进制文件 */
     @MessageMethod
-    async writeBinaryFile(filePath: string, data: ArrayBuffer): Promise<boolean> {
+    async writeBinaryFile(filePath: string, data: number[] | ArrayBuffer): Promise<boolean> {
         try {
-            const buffer = Buffer.from(data);
+            // 支持普通数组和 ArrayBuffer
+            const buffer = Array.isArray(data) ? Buffer.from(data) : Buffer.from(data);
             fs.writeFileSync(filePath, buffer);
             return true;
         } catch (err) {

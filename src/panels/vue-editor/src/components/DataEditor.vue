@@ -24,6 +24,11 @@
       >
         📤 导出数据
       </button>
+      <label class="sync-toggle" title="导出时同步生成 TypeScript Interface 声明文件">
+        <input type="checkbox" v-model="syncInterface" />
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-label">同步脚本</span>
+      </label>
       <button class="btn btn-primary" @click="handleAddData">
         ➕ 新增数据
       </button>
@@ -44,7 +49,7 @@
           <thead>
             <tr>
               <th class="col-index">#</th>
-              <th class="col-display-name">显示名称</th>
+              <th class="col-display-name">名称</th>
               <th
                 v-for="field in table.fields"
                 :key="field.key"
@@ -229,8 +234,15 @@ import { computed, onMounted, ref } from "vue";
 import { api, getPlatform } from "../api";
 import { dataManager, getFieldTypeName } from "../utils/dataManager";
 import { getDefaultValue } from "../utils/fieldFactory";
+import {
+    generateTableInterfaceFile,
+    getInterfaceFileName,
+} from "../utils/InterfaceGenerator";
 import type { IFieldDef, ITableDef } from "../utils/types";
 import FieldInput from "./FieldInput.vue";
+
+// 同步脚本开关
+const syncInterface = ref(false);
 
 /** 导出时按下拉 valueType 将对应字段转为 string 或 number */
 function coerceInfoForExport(
@@ -550,15 +562,36 @@ async function handleExport() {
       });
       if (!path) return;
       const ok = await api.writeBinaryFile(path, buffer);
-      if (ok) alert("导出成功！");
+
+      // 同步脚本：生成 interface 文件到同目录
+      if (syncInterface.value && ok && props.tableKey && table.value) {
+        const dir = path.replace(/[\\/][^\\/]+$/, "");
+        await generateSingleInterface(dir, props.tableKey, table.value);
+      }
+
+      if (ok) alert(`导出成功！${syncInterface.value ? "\n已同步生成 Interface 声明文件" : ""}`);
       else alert("导出失败");
       return;
     }
     if (platform === "standalone") {
       // 网页/独立：触发下载或 File System Access API
-      const ok = await api.writeBinaryFile(defaultName, buffer);
-      if (ok) alert("导出成功！");
-      else alert("导出失败");
+      if (syncInterface.value && props.tableKey && table.value) {
+        // 同时写出 json + ts
+        const tsContent = generateTableInterfaceFile(props.tableKey, table.value);
+        const tsBuffer = new TextEncoder().encode(tsContent).buffer;
+        const tsName = getInterfaceFileName(props.tableKey);
+        const { selectDirAndWriteFiles } = await import("../api/standalone");
+        const result = await selectDirAndWriteFiles([
+          { name: defaultName, data: buffer },
+          { name: tsName, data: tsBuffer },
+        ]);
+        if (result.success > 0) alert(`导出成功！\n已同步生成 Interface 声明文件`);
+        else alert("导出失败");
+      } else {
+        const ok = await api.writeBinaryFile(defaultName, buffer);
+        if (ok) alert("导出成功！");
+        else alert("导出失败");
+      }
       return;
     }
     if (platform === "electron") {
@@ -571,6 +604,17 @@ async function handleExport() {
     console.error("[DataEditor] 导出失败:", err);
     alert("导出失败: " + (err as Error).message);
   }
+}
+
+/**
+ * 生成单个表的 interface 文件（Cocos / Electron 平台）
+ */
+async function generateSingleInterface(dir: string, tableKey: string, tableDef: ITableDef) {
+  const content = generateTableInterfaceFile(tableKey, tableDef);
+  const fileName = getInterfaceFileName(tableKey);
+  const filePath = dir + "\\" + fileName;
+  const tsBuffer = new TextEncoder().encode(content).buffer;
+  await api.writeBinaryFile(filePath, tsBuffer);
 }
 
 // ==================== 创建默认信息 ====================
@@ -654,6 +698,68 @@ function createDefaultInfo(): Record<string, any> {
 .btn:disabled:hover {
   background: #3e3e42;
   border-color: #555;
+}
+
+/* 同步脚本开关 */
+.sync-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.sync-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sync-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.toggle-track {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  transition: background 0.25s ease;
+  flex-shrink: 0;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.sync-toggle input:checked + .toggle-track {
+  background: #4caf50;
+}
+
+.sync-toggle input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(16px);
+}
+
+.toggle-label {
+  font-size: 13px;
+  color: #cccccc;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .btn-outline {
