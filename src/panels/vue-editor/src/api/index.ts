@@ -52,6 +52,12 @@ export interface IEditorApi {
     
     /** 创建目录 */
     createDirectory(path: string): Promise<boolean>;
+
+    /** 刷新资源（Cocos 编辑器专用） */
+    refreshAssets?(path: string): Promise<void>;
+
+    /** 递归列出目录下所有 JSON 文件，返回 { relativePath, fullPath }[] */
+    listJsonFiles?(dirPath: string): Promise<Array<{ relativePath: string; fullPath: string }>>;
 }
 
 // 当前平台

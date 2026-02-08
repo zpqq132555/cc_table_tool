@@ -164,6 +164,14 @@ export interface ICreateTableParams {
 
 // ==================== 数据源结构 ====================
 
+/** 导出设置 */
+export interface IExportSettings {
+    /** JSON 导出根路径 */
+    jsonExportDir?: string;
+    /** TypeScript 声明文件导出根路径 */
+    tsExportDir?: string;
+}
+
 /** 数据源结构 */
 export interface IDataSource {
     /** 创建时间 */
@@ -172,6 +180,10 @@ export interface IDataSource {
     updatedAt: number;
     /** 版本号 */
     version: number;
+    /** 导出时是否同步生成 TypeScript Interface 声明文件 */
+    syncInterface?: boolean;
+    /** 导出路径设置 */
+    exportSettings?: IExportSettings;
     /** 表集合 (key -> 表定义) */
     data: Record<string, ITableDef>;
 }

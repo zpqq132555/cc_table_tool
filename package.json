@@ -43,6 +43,33 @@
                 "methods": [
                     "openDataEditor"
                 ]
+            },
+            "getProjectPath": {
+                "methods": ["getProjectPath"]
+            },
+            "readFile": {
+                "methods": ["readFile"]
+            },
+            "readBinaryFile": {
+                "methods": ["readBinaryFile"]
+            },
+            "writeBinaryFile": {
+                "methods": ["writeBinaryFile"]
+            },
+            "selectFile": {
+                "methods": ["selectFile"]
+            },
+            "selectDirectory": {
+                "methods": ["selectDirectory"]
+            },
+            "selectSavePath": {
+                "methods": ["selectSavePath"]
+            },
+            "exists": {
+                "methods": ["exists"]
+            },
+            "createDirectory": {
+                "methods": ["createDirectory"]
             }
         }
     },

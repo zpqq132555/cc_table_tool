@@ -71,10 +71,11 @@ class ExtensionsToolsPlugin extends BasePlugin {
 
     /** 读取二进制文件 */
     @MessageMethod
-    async readBinaryFile(filePath: string): Promise<ArrayBuffer | null> {
+    async readBinaryFile(filePath: string): Promise<number[] | null> {
         try {
             const buffer = fs.readFileSync(filePath);
-            return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+            // 转换为普通数组，以便 IPC 序列化
+            return Array.from(buffer);
         } catch (err) {
             this.error(`读取文件失败: ${filePath}`, err);
             return null;
@@ -83,9 +84,10 @@ class ExtensionsToolsPlugin extends BasePlugin {
 
     /** 写入二进制文件 */
     @MessageMethod
-    async writeBinaryFile(filePath: string, data: ArrayBuffer): Promise<boolean> {
+    async writeBinaryFile(filePath: string, data: number[] | ArrayBuffer): Promise<boolean> {
         try {
-            const buffer = Buffer.from(data);
+            // 支持普通数组和 ArrayBuffer
+            const buffer = Array.isArray(data) ? Buffer.from(data) : Buffer.from(data);
             fs.writeFileSync(filePath, buffer);
             return true;
         } catch (err) {
@@ -178,6 +180,42 @@ class ExtensionsToolsPlugin extends BasePlugin {
             this.error(`创建目录失败: ${dirPath}`, err);
             return false;
         }
+    }
+
+    /** 刷新资源（通知 Cocos 编辑器刷新资源数据库） */
+    @MessageMethod
+    async refreshAssets(path: string): Promise<void> {
+        try {
+            await this.asset.refresh(path);
+            this.log(`资源刷新成功: ${path}`);
+        } catch (err) {
+            this.warn(`资源刷新失败: ${path}`, err);
+        }
+    }
+
+    /** 递归列出目录下所有 JSON 文件 */
+    @MessageMethod
+    async listJsonFiles(dirPath: string): Promise<Array<{ relativePath: string; fullPath: string }>> {
+        const results: Array<{ relativePath: string; fullPath: string }> = [];
+        const path = require('path');
+
+        const walk = (dir: string, relativeBase: string) => {
+            if (!fs.existsSync(dir)) return;
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                const relPath = relativeBase ? `${relativeBase}/${entry.name}` : entry.name;
+                if (entry.isDirectory()) {
+                    walk(fullPath, relPath);
+                } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.json')) {
+                    results.push({ relativePath: relPath, fullPath });
+                }
+            }
+        };
+
+        walk(dirPath, '');
+        this.log(`扫描到 ${results.length} 个 JSON 文件: ${dirPath}`);
+        return results;
     }
 }
 
