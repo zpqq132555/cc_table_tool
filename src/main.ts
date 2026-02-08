@@ -181,6 +181,42 @@ class ExtensionsToolsPlugin extends BasePlugin {
             return false;
         }
     }
+
+    /** 刷新资源（通知 Cocos 编辑器刷新资源数据库） */
+    @MessageMethod
+    async refreshAssets(path: string): Promise<void> {
+        try {
+            await this.asset.refresh(path);
+            this.log(`资源刷新成功: ${path}`);
+        } catch (err) {
+            this.warn(`资源刷新失败: ${path}`, err);
+        }
+    }
+
+    /** 递归列出目录下所有 JSON 文件 */
+    @MessageMethod
+    async listJsonFiles(dirPath: string): Promise<Array<{ relativePath: string; fullPath: string }>> {
+        const results: Array<{ relativePath: string; fullPath: string }> = [];
+        const path = require('path');
+
+        const walk = (dir: string, relativeBase: string) => {
+            if (!fs.existsSync(dir)) return;
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                const relPath = relativeBase ? `${relativeBase}/${entry.name}` : entry.name;
+                if (entry.isDirectory()) {
+                    walk(fullPath, relPath);
+                } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.json')) {
+                    results.push({ relativePath: relPath, fullPath });
+                }
+            }
+        };
+
+        walk(dirPath, '');
+        this.log(`扫描到 ${results.length} 个 JSON 文件: ${dirPath}`);
+        return results;
+    }
 }
 
 // 创建插件实例并导出

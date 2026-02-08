@@ -162,6 +162,37 @@ export function generateIndexFile(tables: { key: string; tableDef: ITableDef }[]
 }
 
 /**
+ * 为所有表生成带 exportPath 相对路径的索引文件内容
+ * index.ts 位于 tsDir/ 根目录，interface 文件位于 tsDir/exportPath/ITableKey.ts
+ */
+export function generateIndexFileWithPaths(
+    tables: { key: string; exportPath: string; tableDef: ITableDef }[]
+): string {
+    const lines: string[] = [];
+
+    lines.push('/**');
+    lines.push(' * Table Tool - 数据接口索引');
+    lines.push(' * ');
+    lines.push(' * ⚠️ 此文件由 Table Tool 自动生成，请勿手动修改');
+    lines.push(` * 生成时间: ${new Date().toLocaleString('zh-CN')}`);
+    lines.push(' */');
+    lines.push('');
+
+    for (const { key, exportPath } of tables) {
+        const interfaceName = toInterfaceName(key);
+        const fileName = getInterfaceFileName(key).replace(/\.ts$/, '');
+        // 构建相对路径：./exportPath/ITableKey 或 ./ITableKey
+        const importPath = exportPath
+            ? `./${exportPath.replace(/\\/g, '/')}/${fileName}`
+            : `./${fileName}`;
+        lines.push(`export type { ${interfaceName}, ${interfaceName}Map } from '${importPath}';`);
+    }
+
+    lines.push('');
+    return lines.join('\n');
+}
+
+/**
  * 获取表 interface 的文件名
  */
 export function getInterfaceFileName(tableKey: string): string {

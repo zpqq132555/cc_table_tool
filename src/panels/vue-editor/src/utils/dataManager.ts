@@ -4,10 +4,10 @@
  */
 
 import { reactive, ref } from 'vue';
-import { api } from '../api';
+import { api, getPlatform } from '../api';
 import { importTableFromJson } from './importHelper';
 import { createDefaultDataSource, deserializeDataSource, serializeDataSource } from './serializer';
-import type { ICreateTableParams, IDataSource, ITableDef } from './types';
+import type { ICreateTableParams, IDataSource, IExportSettings, ITableDef } from './types';
 
 // 导出类型和工具函数
 export * from './fieldFactory';
@@ -55,6 +55,79 @@ export class DataManager {
      */
     get dataSize() {
         return this.state.rawData?.byteLength || 0;
+    }
+
+    /**
+     * 是否同步生成 Interface 声明文件
+     */
+    get syncInterface(): boolean {
+        return this.state.dataSource?.syncInterface ?? false;
+    }
+
+    set syncInterface(value: boolean) {
+        if (this.state.dataSource) {
+            this.state.dataSource.syncInterface = value;
+        }
+    }
+
+    /**
+     * 导出路径设置
+     */
+    get exportSettings(): IExportSettings {
+        return this.state.dataSource?.exportSettings ?? {};
+    }
+
+    set exportSettings(value: IExportSettings) {
+        if (this.state.dataSource) {
+            this.state.dataSource.exportSettings = value;
+        }
+    }
+
+    /**
+     * 获取数据源名（文件名，不含扩展名）
+     */
+    get dataSourceName(): string {
+        const fileName = this.state.filePath.split(/[\\/]/).pop() || 'data';
+        return fileName.replace(/\.table$/, '');
+    }
+
+    /**
+     * 获取数据源所在目录路径
+     */
+    get dataSourceDir(): string {
+        return this.state.filePath.replace(/[\\/][^\\/]+$/, '');
+    }
+
+    /**
+     * 获取 JSON 导出根目录
+     * 优先使用设置的路径，否则默认为 数据源目录/数据源名.json
+     */
+    getJsonExportDir(): string {
+        const settings = this.exportSettings;
+        if (settings.jsonExportDir) {
+            return settings.jsonExportDir;
+        }
+        return `${this.dataSourceDir}\\${this.dataSourceName}.json`;
+    }
+
+    /**
+     * 获取 TS 导出根目录
+     * 优先使用设置的路径，否则默认为 数据源目录/数据源名.ts
+     */
+    getTsExportDir(): string {
+        const settings = this.exportSettings;
+        if (settings.tsExportDir) {
+            return settings.tsExportDir;
+        }
+        return `${this.dataSourceDir}\\${this.dataSourceName}.ts`;
+    }
+
+    /**
+     * 检查是否已配置导出路径
+     */
+    get hasExportSettings(): boolean {
+        const settings = this.exportSettings;
+        return !!(settings.jsonExportDir || settings.tsExportDir);
     }
 
     /**
@@ -316,7 +389,7 @@ export class DataManager {
     // ==================== 导入功能 ====================
 
     /**
-     * 从 JSON 文件导入数据表
+     * 从单个 JSON 文件导入数据表
      */
     async importTableFromJson(): Promise<number> {
         if (!this.state.dataSource) {
@@ -365,10 +438,181 @@ export class DataManager {
     }
 
     /**
-     * 从文件夹批量导入 JSON 数据表
+     * 从文件夹递归导入所有 JSON 数据表
+     * 根据文件的相对路径自动设置 exportPath
      */
     async importTablesFromFolder(): Promise<number> {
-        throw new Error('批量导入功能需要进一步开发');
+        if (!this.state.dataSource) {
+            throw new Error('数据未加载');
+        }
+
+        const platform = getPlatform();
+
+        if (platform === 'standalone') {
+            return this.importTablesFromFolderStandalone();
+        }
+
+        // Cocos / Electron：使用 selectDirectory + listJsonFiles + readFile
+        try {
+            const dirPath = await api.selectDirectory({
+                title: '选择要导入的文件夹（递归扫描所有 JSON 文件）'
+            });
+            if (!dirPath) return 0;
+
+            const files = await api.listJsonFiles?.(dirPath);
+            if (!files || files.length === 0) {
+                alert('该文件夹下没有找到 JSON 文件');
+                return 0;
+            }
+
+            let successCount = 0;
+            let skipCount = 0;
+            const errors: string[] = [];
+
+            for (const file of files) {
+                try {
+                    const content = await api.readFile(file.fullPath);
+                    if (!content) {
+                        errors.push(`${file.relativePath}: 读取失败`);
+                        continue;
+                    }
+
+                    const jsonData = JSON.parse(content);
+
+                    // 从文件名生成 key
+                    const fileName = file.relativePath.split('/').pop() || '';
+                    const key = fileName.replace(/\.json$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
+
+                    if (!key) {
+                        errors.push(`${file.relativePath}: 无法生成表 key`);
+                        continue;
+                    }
+
+                    // 跳过已存在的表
+                    if (this.state.dataSource!.data[key]) {
+                        skipCount++;
+                        continue;
+                    }
+
+                    // 从相对路径推导 exportPath（去掉文件名部分）
+                    const pathParts = file.relativePath.replace(/\\/g, '/').split('/');
+                    pathParts.pop(); // 移除文件名
+                    const exportPath = pathParts.join('/');
+
+                    // 导入表
+                    const tableDef = await importTableFromJson(key, jsonData, this.getNextTableIndex());
+                    tableDef.exportPath = exportPath;
+                    this.state.dataSource!.data[key] = tableDef;
+                    successCount++;
+                } catch (e) {
+                    errors.push(`${file.relativePath}: ${(e as Error).message}`);
+                }
+            }
+
+            if (successCount > 0) {
+                await this.save();
+                this.forceRefresh();
+            }
+
+            // 汇报结果
+            let msg = `扫描到 ${files.length} 个 JSON 文件\n成功导入 ${successCount} 个`;
+            if (skipCount > 0) msg += `\n跳过 ${skipCount} 个（已存在）`;
+            if (errors.length > 0) msg += `\n失败 ${errors.length} 个：\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`;
+            alert(msg);
+
+            return successCount;
+        } catch (err) {
+            console.error('[DataManager] 文件夹导入失败:', err);
+            throw err;
+        }
+    }
+
+    /**
+     * Standalone 模式：使用 File System Access API 递归导入文件夹
+     */
+    private async importTablesFromFolderStandalone(): Promise<number> {
+        if (!('showDirectoryPicker' in window)) {
+            alert('当前浏览器不支持文件夹选择');
+            return 0;
+        }
+
+        try {
+            const dirHandle: FileSystemDirectoryHandle = await (window as any).showDirectoryPicker({ mode: 'read' });
+
+            // 递归收集所有 JSON 文件
+            const jsonFiles: { relativePath: string; file: File }[] = [];
+            const walkDir = async (handle: FileSystemDirectoryHandle, basePath: string) => {
+                for await (const entry of (handle as any).values()) {
+                    const entryPath = basePath ? `${basePath}/${entry.name}` : entry.name;
+                    if (entry.kind === 'directory') {
+                        await walkDir(entry as FileSystemDirectoryHandle, entryPath);
+                    } else if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.json')) {
+                        const file = await (entry as FileSystemFileHandle).getFile();
+                        jsonFiles.push({ relativePath: entryPath, file });
+                    }
+                }
+            };
+
+            await walkDir(dirHandle, '');
+
+            if (jsonFiles.length === 0) {
+                alert('该文件夹下没有找到 JSON 文件');
+                return 0;
+            }
+
+            let successCount = 0;
+            let skipCount = 0;
+            const errors: string[] = [];
+
+            for (const { relativePath, file } of jsonFiles) {
+                try {
+                    const content = await file.text();
+                    const jsonData = JSON.parse(content);
+
+                    // 从文件名生成 key
+                    const fileName = file.name;
+                    const key = fileName.replace(/\.json$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
+
+                    if (!key) {
+                        errors.push(`${relativePath}: 无法生成表 key`);
+                        continue;
+                    }
+
+                    // 跳过已存在的表
+                    if (this.state.dataSource!.data[key]) {
+                        skipCount++;
+                        continue;
+                    }
+
+                    // 从相对路径推导 exportPath
+                    const pathParts = relativePath.replace(/\\/g, '/').split('/');
+                    pathParts.pop();
+                    const exportPath = pathParts.join('/');
+
+                    const tableDef = await importTableFromJson(key, jsonData, this.getNextTableIndex());
+                    tableDef.exportPath = exportPath;
+                    this.state.dataSource!.data[key] = tableDef;
+                    successCount++;
+                } catch (e) {
+                    errors.push(`${relativePath}: ${(e as Error).message}`);
+                }
+            }
+
+            if (successCount > 0) {
+                await this.save();
+                this.forceRefresh();
+            }
+
+            let msg = `扫描到 ${jsonFiles.length} 个 JSON 文件\n成功导入 ${successCount} 个`;
+            if (skipCount > 0) msg += `\n跳过 ${skipCount} 个（已存在）`;
+            if (errors.length > 0) msg += `\n失败 ${errors.length} 个：\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`;
+            alert(msg);
+
+            return successCount;
+        } catch (err) {
+            console.error('[DataManager] Standalone 文件夹导入失败:', err);
+            throw err;
+        }
     }
 }
 

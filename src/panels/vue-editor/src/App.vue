@@ -44,7 +44,10 @@
 
         <!-- 导出全部按钮（数据加载后显示） -->
         <template v-if="dataManager.isLoaded">
-          <label class="sync-toggle" title="导出时同步生成 TypeScript Interface 声明文件">
+          <label
+            class="sync-toggle"
+            title="导出时同步生成 TypeScript Interface 声明文件"
+          >
             <input type="checkbox" v-model="syncInterface" />
             <span class="toggle-track"><span class="toggle-thumb"></span></span>
             <span class="toggle-label">同步脚本</span>
@@ -82,9 +85,22 @@
           >
         </div>
         <div class="info-right">
-          <span class="info-path" :title="normalizedPath">{{
-            normalizedPath
-          }}</span>
+          <button
+            v-if="isCocos"
+            class="btn-export-settings"
+            @click="openExportSettings"
+            title="导出路径设置"
+          >
+            📁 <span>导出路径</span>
+            <span
+              v-if="dataManager.hasExportSettings"
+              class="settings-dot settings-dot--active"
+            ></span>
+            <span v-else class="settings-dot settings-dot--default"></span>
+          </button>
+          <span class="info-path" :title="normalizedPath">
+            数据源:{{ normalizedPath }}
+          </span>
         </div>
       </div>
 
@@ -131,6 +147,82 @@
         </div>
       </main>
     </template>
+
+    <!-- 导出路径设置对话框 -->
+    <div
+      v-if="showExportSettings"
+      class="dialog-overlay"
+      @click.self="showExportSettings = false"
+    >
+      <div class="dialog-container">
+        <div class="dialog-header">
+          <h2>📁 导出路径设置</h2>
+          <button class="dialog-btn-close" @click="showExportSettings = false">
+            ✕
+          </button>
+        </div>
+        <div class="dialog-content">
+          <p class="settings-tip">
+            设置数据导出的根路径。未设置时默认为数据源所在目录。<br />
+            导出结构：<code>导出路径/表的 exportPath/文件名</code>
+          </p>
+
+          <div class="form-group">
+            <label class="form-label">JSON 导出路径</label>
+            <div class="path-input-row">
+              <input
+                v-model="editJsonDir"
+                type="text"
+                class="form-input"
+                :placeholder="defaultJsonDir"
+              />
+              <button class="btn btn-sm" @click="handleSelectJsonDir">
+                📂
+              </button>
+              <button
+                class="btn btn-sm btn-clear"
+                @click="editJsonDir = ''"
+                title="清除（使用默认路径）"
+              >
+                ✕
+              </button>
+            </div>
+            <p class="path-hint">
+              默认路径：<code>{{ defaultJsonDir }}</code>
+            </p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">TypeScript 导出路径</label>
+            <div class="path-input-row">
+              <input
+                v-model="editTsDir"
+                type="text"
+                class="form-input"
+                :placeholder="defaultTsDir"
+              />
+              <button class="btn btn-sm" @click="handleSelectTsDir">📂</button>
+              <button
+                class="btn btn-sm btn-clear"
+                @click="editTsDir = ''"
+                title="清除（使用默认路径）"
+              >
+                ✕
+              </button>
+            </div>
+            <p class="path-hint">
+              默认路径：<code>{{ defaultTsDir }}</code>
+            </p>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn" @click="showExportSettings = false">取消</button>
+          <button class="btn btn-primary" @click="handleSaveExportSettings">
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -143,6 +235,7 @@ import TableEditor from "./components/TableEditor.vue";
 import { dataManager } from "./utils/dataManager";
 import {
     generateIndexFile,
+    generateIndexFileWithPaths,
     generateTableInterfaceFile,
     getInterfaceFileName,
 } from "./utils/InterfaceGenerator";
@@ -151,12 +244,20 @@ import {
 const platform = ref<string>(getPlatform());
 const isCocos = computed(() => platform.value.startsWith("cocos"));
 
-// 同步脚本开关
-const syncInterface = ref(false);
+// 同步脚本开关（跟随数据源持久化）
+const syncInterface = computed({
+  get: () => dataManager.syncInterface,
+  set: (value: boolean) => {
+    dataManager.syncInterface = value;
+    dataManager
+      .save()
+      .catch((err) => console.error("[App] 保存 syncInterface 失败:", err));
+  },
+});
 
 // 路径标准化（统一使用反斜杠）
 const normalizedPath = computed(() => {
-  return dataManager.filePath.replace(/\//g, '\\');
+  return dataManager.filePath.replace(/\//g, "\\");
 });
 
 // 加载状态
@@ -170,6 +271,53 @@ const currentView = ref<"main" | "config" | "table-editor" | "data-editor">(
 
 // 正在编辑的表 key
 const editingTableKey = ref<string | undefined>(undefined);
+
+// 导出路径设置对话框
+const showExportSettings = ref(false);
+const editJsonDir = ref("");
+const editTsDir = ref("");
+
+// 默认导出路径（数据源目录/数据源名.json 或 .ts）
+const defaultJsonDir = computed(() => {
+  if (!dataManager.isLoaded) return "";
+  return `${dataManager.dataSourceDir}\\json`;
+});
+
+const defaultTsDir = computed(() => {
+  if (!dataManager.isLoaded) return "";
+  return `${dataManager.dataSourceDir}\\ts`;
+});
+
+// 打开设置时加载当前值
+function openExportSettings() {
+  const settings = dataManager.exportSettings;
+  editJsonDir.value = settings.jsonExportDir || "";
+  editTsDir.value = settings.tsExportDir || "";
+  showExportSettings.value = true;
+}
+
+// 选择 JSON 导出目录
+async function handleSelectJsonDir() {
+  const dir = await api.selectDirectory({ title: "选择 JSON 导出目录" });
+  if (dir) editJsonDir.value = dir;
+}
+
+// 选择 TS 导出目录
+async function handleSelectTsDir() {
+  const dir = await api.selectDirectory({ title: "选择 TypeScript 导出目录" });
+  if (dir) editTsDir.value = dir;
+}
+
+// 保存导出路径设置
+async function handleSaveExportSettings() {
+  dataManager.exportSettings = {
+    jsonExportDir: editJsonDir.value.trim() || undefined,
+    tsExportDir: editTsDir.value.trim() || undefined,
+  };
+  await dataManager.save();
+  showExportSettings.value = false;
+  console.log("[App] 导出路径设置已保存:", dataManager.exportSettings);
+}
 
 // ==================== 创建数据 ====================
 async function handleCreateData() {
@@ -273,69 +421,155 @@ async function handleExportAll() {
 
     const plat = getPlatform();
 
-    if (plat === "cocos-v2" || plat === "cocos-v3") {
-      // Cocos 编辑器：选择目录，逐表写入
-      const dir = await api.selectDirectory({
-        title: "选择导出目录（每个表导出为一个 JSON 文件）",
-      });
-      if (!dir) return;
+    if (plat === "cocos-v2" || plat === "cocos-v3" || plat === "electron") {
+      // Cocos / Electron：使用设置的路径导出
+      if (!dataManager.hasExportSettings) {
+        const useDefault = confirm(
+          "尚未配置导出路径，将使用默认路径：\n" +
+            `  JSON: ${defaultJsonDir.value}\n` +
+            `  TS:   ${defaultTsDir.value}\n\n` +
+            "点击「确定」使用默认路径导出，\n" +
+            "点击「取消」打开设置页面。",
+        );
+        if (!useDefault) {
+          openExportSettings();
+          return;
+        }
+      }
+
+      const jsonDir = dataManager.getJsonExportDir();
+      const tsDir = dataManager.getTsExportDir();
+
+      // 确保目录存在
+      await api.createDirectory(jsonDir);
+      if (syncInterface.value) {
+        await api.createDirectory(tsDir);
+      }
 
       let successCount = 0;
       let failCount = 0;
+      const tsItems: {
+        key: string;
+        exportPath: string;
+        tableDef: import("./utils/types").ITableDef;
+      }[] = [];
+
       for (const t of tables) {
+        const tableDef = dataManager.getTable(t.key);
+        if (!tableDef) {
+          failCount++;
+          continue;
+        }
+
         const payload = getTableExportPayload(t.key);
         if (!payload) {
           failCount++;
           continue;
         }
+
+        // JSON: jsonDir/exportPath/tableKey.json
+        const exportPath = tableDef.exportPath || "";
+        const jsonSubDir = exportPath ? `${jsonDir}\\${exportPath}` : jsonDir;
+        await api.createDirectory(jsonSubDir);
+
         const jsonStr = JSON.stringify(payload);
         const buffer = new TextEncoder().encode(jsonStr).buffer;
-        const filePath = dir + "\\" + t.key + ".json";
-        const ok = await api.writeBinaryFile(filePath, buffer);
+        const jsonFilePath = `${jsonSubDir}\\${t.key}.json`;
+        const ok = await api.writeBinaryFile(jsonFilePath, buffer);
         if (ok) successCount++;
         else failCount++;
+
+        if (syncInterface.value) {
+          tsItems.push({ key: t.key, exportPath, tableDef });
+        }
       }
 
       // 同步脚本：生成 interface 文件
-      if (syncInterface.value) {
-        await generateInterfaceFiles(dir, tables);
+      if (syncInterface.value && tsItems.length > 0) {
+        await generateInterfaceFilesStructured(tsDir, tsItems);
+      }
+
+      // 刷新 Cocos 资源数据库
+      if (isCocos.value) {
+        try {
+          await api.refreshAssets?.(jsonDir);
+          if (syncInterface.value) {
+            await api.refreshAssets?.(tsDir);
+          }
+        } catch (e) {
+          console.warn("[App] 刷新资源失败:", e);
+        }
       }
 
       alert(
-        `导出完成！成功 ${successCount} 个${failCount > 0 ? `，失败 ${failCount} 个` : ""}${syncInterface.value ? "\n已同步生成 Interface 声明文件" : ""}`,
+        `导出完成！成功 ${successCount} 个${failCount > 0 ? `，失败 ${failCount} 个` : ""}` +
+          `${syncInterface.value ? "\n已同步生成 Interface 声明文件" : ""}` +
+          `\n\nJSON: ${jsonDir}` +
+          `${syncInterface.value ? `\nTS:   ${tsDir}` : ""}`,
       );
       return;
     }
 
     if (plat === "standalone") {
-      // 浏览器：选择目录后逐表写入
-      const files: { name: string; data: ArrayBuffer }[] = [];
+      // 浏览器：使用结构化导出
+      const exportTables: Array<{
+        tableKey: string;
+        exportPath: string;
+        jsonData: ArrayBuffer;
+        tsData?: ArrayBuffer;
+      }> = [];
+
       for (const t of tables) {
+        const tableDef = dataManager.getTable(t.key);
+        if (!tableDef) continue;
+
         const payload = getTableExportPayload(t.key);
         if (!payload) continue;
         const jsonStr = JSON.stringify(payload);
-        const buffer = new TextEncoder().encode(jsonStr).buffer;
-        files.push({ name: `${t.key}.json`, data: buffer });
+        const jsonData = new TextEncoder().encode(jsonStr).buffer;
+
+        const data: {
+          tableKey: string;
+          exportPath: string;
+          jsonData: ArrayBuffer;
+          tsData?: ArrayBuffer;
+        } = {
+          tableKey: t.key,
+          exportPath: tableDef.exportPath || "",
+          jsonData,
+        };
+        if (syncInterface.value) {
+          const tsContent = generateTableInterfaceFile(t.key, tableDef);
+          data.tsData = new TextEncoder().encode(tsContent).buffer;
+        }
+
+        exportTables.push(data);
       }
 
-      // 同步脚本：追加 interface 文件
-      if (syncInterface.value) {
-        const tsFiles = buildInterfaceFileList(tables);
-        files.push(...tsFiles);
+      if (exportTables.length === 0) {
+        alert("没有可导出的数据表");
+        return;
       }
 
-      const { selectDirAndWriteFiles } = await import("./api/standalone");
-      const result = await selectDirAndWriteFiles(files);
-      alert(
-        `导出完成！成功 ${result.success} 个${result.fail > 0 ? `，失败 ${result.fail} 个` : ""}${syncInterface.value ? "\n已同步生成 Interface 声明文件" : ""}`,
+      const { exportAllTablesWithStructure } = await import("./api/standalone");
+      const ok = await exportAllTablesWithStructure(
+        dataManager.dataSourceName,
+        exportTables,
+        syncInterface.value,
       );
+
+      if (ok) {
+        let msg = `导出完成！共导出 ${exportTables.length} 个表`;
+        if (syncInterface.value) {
+          msg += `\n已同步生成 Interface 声明文件和 index.ts`;
+        }
+        alert(msg);
+      } else {
+        alert("导出失败");
+      }
       return;
     }
 
-    if (plat === "electron") {
-      alert("Electron 导出功能即将支持，请先在 Cocos 编辑器或网页中使用导出。");
-      return;
-    }
     alert("当前环境暂不支持导出");
   } catch (err) {
     console.error("[App] 导出全部失败:", err);
@@ -345,31 +579,41 @@ async function handleExportAll() {
 
 // ==================== 生成 Interface 文件 ====================
 /**
- * 在指定目录生成 interface 声明文件（Cocos / Electron 平台）
+ * 在 tsDir 下按 exportPath 子目录结构生成 interface 声明文件（Cocos / Electron 平台）
+ * 文件路径：tsDir/exportPath/ITableKey.ts
+ * 索引文件：tsDir/index.ts（带相对路径导入）
  */
-async function generateInterfaceFiles(
-  dir: string,
-  tables: { key: string; name: string }[],
+async function generateInterfaceFilesStructured(
+  tsDir: string,
+  tsItems: {
+    key: string;
+    exportPath: string;
+    tableDef: import("./utils/types").ITableDef;
+  }[],
 ) {
-  const items: { key: string; tableDef: import("./utils/types").ITableDef }[] = [];
+  const indexEntries: {
+    key: string;
+    exportPath: string;
+    tableDef: import("./utils/types").ITableDef;
+  }[] = [];
 
-  for (const t of tables) {
-    const tableDef = dataManager.getTable(t.key);
-    if (!tableDef) continue;
+  for (const item of tsItems) {
+    const content = generateTableInterfaceFile(item.key, item.tableDef);
+    const fileName = getInterfaceFileName(item.key);
+    const subDir = item.exportPath ? `${tsDir}\\${item.exportPath}` : tsDir;
+    await api.createDirectory(subDir);
 
-    const content = generateTableInterfaceFile(t.key, tableDef);
-    const fileName = getInterfaceFileName(t.key);
-    const filePath = dir + "\\" + fileName;
+    const filePath = `${subDir}\\${fileName}`;
     const buffer = new TextEncoder().encode(content).buffer;
     await api.writeBinaryFile(filePath, buffer);
 
-    items.push({ key: t.key, tableDef });
+    indexEntries.push(item);
   }
 
-  // 生成 index.ts
-  if (items.length > 0) {
-    const indexContent = generateIndexFile(items);
-    const indexPath = dir + "\\" + "index.ts";
+  // 生成 index.ts，使用带 exportPath 的相对路径
+  if (indexEntries.length > 0) {
+    const indexContent = generateIndexFileWithPaths(indexEntries);
+    const indexPath = `${tsDir}\\index.ts`;
     const indexBuffer = new TextEncoder().encode(indexContent).buffer;
     await api.writeBinaryFile(indexPath, indexBuffer);
   }
@@ -382,7 +626,8 @@ function buildInterfaceFileList(
   tables: { key: string; name: string }[],
 ): { name: string; data: ArrayBuffer }[] {
   const files: { name: string; data: ArrayBuffer }[] = [];
-  const items: { key: string; tableDef: import("./utils/types").ITableDef }[] = [];
+  const items: { key: string; tableDef: import("./utils/types").ITableDef }[] =
+    [];
 
   for (const t of tables) {
     const tableDef = dataManager.getTable(t.key);
@@ -914,5 +1159,223 @@ onMounted(() => {
 .empty-state .tip {
   font-size: 14px;
   color: #666;
+}
+
+/* ==================== 对话框 ==================== */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-container {
+  background: #2d2d30;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  width: 560px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #3e3e42;
+}
+
+.dialog-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.dialog-btn-close {
+  background: transparent;
+  border: none;
+  color: #999;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.dialog-btn-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dialog-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid #3e3e42;
+}
+
+.settings-tip {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: #999;
+  line-height: 1.6;
+}
+
+.settings-tip code {
+  background: rgba(79, 195, 247, 0.1);
+  color: #4fc3f7;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #d4d4d4;
+  margin-bottom: 6px;
+}
+
+.form-input {
+  flex: 1;
+  padding: 8px 12px;
+  background: #1e1e1e;
+  border: 1px solid #3e3e42;
+  border-radius: 6px;
+  color: #d4d4d4;
+  font-size: 13px;
+  font-family: "Consolas", "Monaco", monospace;
+  outline: none;
+  transition: border-color 0.2s;
+  min-width: 0;
+}
+
+.form-input:focus {
+  border-color: #4fc3f7;
+}
+
+.form-input::placeholder {
+  color: #666;
+}
+
+.path-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.path-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #666;
+}
+
+.path-hint code {
+  background: rgba(255, 255, 255, 0.05);
+  color: #888;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.btn-sm {
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  min-width: auto;
+}
+
+.btn-clear {
+  color: #e57373 !important;
+}
+
+.btn-clear:hover {
+  background: rgba(229, 115, 115, 0.15) !important;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: #999;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover {
+  color: #4fc3f7;
+  background: rgba(79, 195, 247, 0.1);
+}
+
+/* 导出路径设置按钮（醒目样式） */
+.btn-export-settings {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  margin-right: 10px;
+  background: rgba(79, 195, 247, 0.08);
+  border: 1px solid rgba(79, 195, 247, 0.25);
+  border-radius: 6px;
+  color: #8ac4e0;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-export-settings:hover {
+  background: rgba(79, 195, 247, 0.18);
+  border-color: rgba(79, 195, 247, 0.5);
+  color: #4fc3f7;
+}
+
+.btn-export-settings span {
+  font-size: 12px;
+}
+
+.settings-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+
+.settings-dot--active {
+  background: #4caf50;
+  box-shadow: 0 0 4px rgba(76, 175, 80, 0.6);
+}
+
+.settings-dot--default {
+  background: #ff9800;
+  box-shadow: 0 0 4px rgba(255, 152, 0, 0.5);
 }
 </style>

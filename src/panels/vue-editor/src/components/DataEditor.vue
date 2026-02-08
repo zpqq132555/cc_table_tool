@@ -241,8 +241,14 @@ import {
 import type { IFieldDef, ITableDef } from "../utils/types";
 import FieldInput from "./FieldInput.vue";
 
-// 同步脚本开关
-const syncInterface = ref(false);
+// 同步脚本开关（跟随数据源持久化）
+const syncInterface = computed({
+  get: () => dataManager.syncInterface,
+  set: (value: boolean) => {
+    dataManager.syncInterface = value;
+    dataManager.save().catch(err => console.error('[DataEditor] 保存 syncInterface 失败:', err));
+  },
+});
 
 /** 导出时按下拉 valueType 将对应字段转为 string 或 number */
 function coerceInfoForExport(
@@ -549,54 +555,91 @@ async function handleExport() {
   if (!payload) return;
   const jsonStr = JSON.stringify(payload);
   const buffer = new TextEncoder().encode(jsonStr).buffer;
-  const defaultName = `${props.tableKey || "data"}.json`;
   const platform = getPlatform();
 
   try {
-    if (platform === "cocos-v2" || platform === "cocos-v3") {
-      // Cocos 编辑器：弹窗选择保存路径后写入
-      const path = await api.selectSavePath?.({
-        title: "导出当前数据表",
-        defaultName,
-        extensions: ["json"],
-      });
-      if (!path) return;
-      const ok = await api.writeBinaryFile(path, buffer);
-
-      // 同步脚本：生成 interface 文件到同目录
-      if (syncInterface.value && ok && props.tableKey && table.value) {
-        const dir = path.replace(/[\\/][^\\/]+$/, "");
-        await generateSingleInterface(dir, props.tableKey, table.value);
+    if (platform === "cocos-v2" || platform === "cocos-v3" || platform === "electron") {
+      if (!props.tableKey || !table.value) {
+        alert("导出失败：表信息不完整");
+        return;
       }
 
-      if (ok) alert(`导出成功！${syncInterface.value ? "\n已同步生成 Interface 声明文件" : ""}`);
-      else alert("导出失败");
+      // 检查导出路径设置
+      if (!dataManager.hasExportSettings) {
+        const jsonDefault = dataManager.getJsonExportDir();
+        const tsDefault = dataManager.getTsExportDir();
+        const useDefault = confirm(
+          "尚未配置导出路径，将使用默认路径：\n" +
+          `  JSON: ${jsonDefault}\n` +
+          `  TS:   ${tsDefault}\n\n` +
+          "点击「确定」继续导出，点击「取消」放弃操作。"
+        );
+        if (!useDefault) return;
+      }
+
+      const jsonDir = dataManager.getJsonExportDir();
+      const tsDir = dataManager.getTsExportDir();
+      const exportPath = table.value.exportPath || '';
+
+      // JSON: jsonDir/exportPath/tableKey.json
+      const jsonSubDir = exportPath ? `${jsonDir}\\${exportPath}` : jsonDir;
+      await api.createDirectory(jsonSubDir);
+      const jsonFilePath = `${jsonSubDir}\\${props.tableKey}.json`;
+      const ok = await api.writeBinaryFile(jsonFilePath, buffer);
+
+      // 同步脚本：tsDir/exportPath/ITableKey.ts
+      if (syncInterface.value && ok) {
+        const tsSubDir = exportPath ? `${tsDir}\\${exportPath}` : tsDir;
+        await api.createDirectory(tsSubDir);
+        await generateSingleInterface(tsSubDir, props.tableKey, table.value);
+      }
+
+      // 刷新 Cocos 资源数据库
+      if (ok && (platform === "cocos-v2" || platform === "cocos-v3")) {
+        try {
+          await api.refreshAssets?.(jsonSubDir);
+          if (syncInterface.value) {
+            const tsSubDir = exportPath ? `${tsDir}\\${exportPath}` : tsDir;
+            await api.refreshAssets?.(tsSubDir);
+          }
+        } catch (e) {
+          console.warn('[DataEditor] 刷新资源失败:', e);
+        }
+      }
+
+      if (ok) {
+        alert(
+          `导出成功！` +
+          `${syncInterface.value ? "\n已同步生成 Interface 声明文件" : ""}` +
+          `\n\n${jsonFilePath}`
+        );
+      } else {
+        alert("导出失败");
+      }
       return;
     }
     if (platform === "standalone") {
-      // 网页/独立：触发下载或 File System Access API
-      if (syncInterface.value && props.tableKey && table.value) {
-        // 同时写出 json + ts
+      // 网页/独立：使用结构化导出
+      if (!props.tableKey || !table.value) {
+        alert("导出失败：表信息不完整");
+        return;
+      }
+      
+      const dataSourceName = dataManager.dataSourceName;
+      const exportPath = table.value.exportPath || '';
+      const { exportTableWithStructure } = await import("../api/standalone");
+      
+      if (syncInterface.value) {
         const tsContent = generateTableInterfaceFile(props.tableKey, table.value);
         const tsBuffer = new TextEncoder().encode(tsContent).buffer;
-        const tsName = getInterfaceFileName(props.tableKey);
-        const { selectDirAndWriteFiles } = await import("../api/standalone");
-        const result = await selectDirAndWriteFiles([
-          { name: defaultName, data: buffer },
-          { name: tsName, data: tsBuffer },
-        ]);
-        if (result.success > 0) alert(`导出成功！\n已同步生成 Interface 声明文件`);
+        const ok = await exportTableWithStructure(dataSourceName, exportPath, props.tableKey, buffer, tsBuffer);
+        if (ok) alert(`导出成功！\n已同步生成 Interface 声明文件`);
         else alert("导出失败");
       } else {
-        const ok = await api.writeBinaryFile(defaultName, buffer);
+        const ok = await exportTableWithStructure(dataSourceName, exportPath, props.tableKey, buffer);
         if (ok) alert("导出成功！");
         else alert("导出失败");
       }
-      return;
-    }
-    if (platform === "electron") {
-      // Electron：后续实现
-      alert("Electron 导出功能即将支持，请先在 Cocos 编辑器或网页中使用导出。");
       return;
     }
     alert("当前环境暂不支持导出");

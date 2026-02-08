@@ -163,4 +163,12 @@ export const cocosApi: IEditorApi = {
     async createDirectory(path: string) {
         return sendToMain('createDirectory', path);
     },
+
+    async refreshAssets(path: string) {
+        return sendToMain('refreshAssets', path);
+    },
+
+    async listJsonFiles(dirPath: string) {
+        return sendToMain('listJsonFiles', dirPath);
+    },
 };
