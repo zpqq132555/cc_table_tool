@@ -99,8 +99,6 @@ cc_table_tool/
 │   ├── tools/                # 编辑器工具类
 │   │   └── Tools.ts          # 文件操作、双向同步等
 │   │
-│   ├── business/             # 业务功能模块
-│   │
 │   └── panels/               # 面板定义
 │       └── vue-editor/       # Vue 数据编辑器 ⭐
 │           ├── package.json
@@ -109,11 +107,27 @@ cc_table_tool/
 │           └── src/
 │               ├── main.ts
 │               ├── App.vue
-│               └── api/      # 平台适配层
-│                   ├── index.ts
-│                   ├── standalone.ts
-│                   ├── cocos.ts
-│                   └── electron.ts
+│               ├── api/      # 平台适配层
+│               │   ├── index.ts
+│               │   ├── standalone.ts
+│               │   ├── cocos.ts
+│               │   └── electron.ts
+│               ├── components/   # Vue 组件
+│               │   ├── ConfigManage.vue
+│               │   ├── TableEditor.vue
+│               │   ├── DataEditor.vue
+│               │   ├── FieldEditor.vue
+│               │   ├── FieldInput.vue
+│               │   ├── ArrayEditor.vue
+│               │   └── ObjectEditor.vue
+│               └── utils/        # 工具模块
+│                   ├── types.ts
+│                   ├── dataManager.ts
+│                   ├── fieldFactory.ts
+│                   ├── importHelper.ts
+│                   ├── importExamples.ts
+│                   ├── serializer.ts
+│                   └── InterfaceGenerator.ts
 │
 ├── electron/                 # Electron 独立打包 ⭐
 │   ├── package.json
@@ -253,7 +267,7 @@ Tools.BidirectionalSync(dirA, dirB, {
 - ✅ 多平台适配层（Standalone/Electron/Cocos）
 - ✅ Electron 独立打包配置
 - ✅ 数据管理模块（增删改查、导入导出）
-- ✅ 字段编辑器（支持 8 种字段类型）
+- ✅ 字段编辑器（支持 7 种字段类型）
 - ✅ 数组编辑器（支持定长/不定长数组）
 - ✅ 对象编辑器（支持嵌套对象）
 - ✅ 字段约束与验证系统
@@ -274,10 +288,10 @@ Tools.BidirectionalSync(dirA, dirB, {
 
 ## 📝 版本历史
 
-### v1.0.0 (2026-02-07)
+### v1.0.0 (2026-02-08)
 - ✅ 跨版本插件基础框架完成
 - ✅ Vue 数据编辑器核心功能完成
-- ✅ 支持 8 种字段类型（string, number, boolean, select, reward, array, object）
+- ✅ 支持 7 种字段类型（string, number, boolean, select, reward, array, object）
 - ✅ 数据加密存储（.table 格式）
 - ✅ JSON 导入导出功能
 - ✅ 多平台运行（Standalone/Electron/Cocos）

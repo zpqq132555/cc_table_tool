@@ -51,7 +51,7 @@ utils/
 
 ### 5. 字段类型支持
 
-支持 8 种字段类型：
+支持 7 种字段类型：
 
 1. **string** - 文本字段
    - 约束：`defaultValue`, `maxLength`

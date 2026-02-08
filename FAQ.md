@@ -152,7 +152,7 @@ async function sendToMain(method: string, ...args: any[]) {
 
 ### Q9: 支持哪些字段类型？
 
-**A**: 目前支持 8 种字段类型：
+**A**: 目前支持 7 种字段类型：
 
 | 类型 | 说明 | 约束 |
 |------|------|------|
@@ -680,5 +680,5 @@ cc.resources.load('data/items.json', (err, json) => {
 
 ---
 
-**最后更新**：2026-02-07  
+**最后更新**：2026-02-08  
 **维护者**：oldP

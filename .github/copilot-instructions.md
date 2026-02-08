@@ -20,14 +20,14 @@
 src/panels/vue-editor/src/
 ├── App.vue              → 主界面组件
 ├── api/index.ts         → 统一 API 接口（已适配四种模式）
-├── utils/data-source.ts → 数据源管理（.table 文件加密存储）
+├── utils/               → 数据管理、序列化、字段工厂等
+│   ├── types.ts           → 类型定义
+│   ├── dataManager.ts     → 数据管理器
+│   ├── fieldFactory.ts    → 字段工厂
+│   ├── importHelper.ts    → 导入助手
+│   ├── serializer.ts      → 序列化（.table 文件加密存储）
+│   └── InterfaceGenerator.ts → TypeScript 接口生成器
 └── components/          → 自定义组件
-```
-
-**共享模块（可选使用）：**
-```
-src/shared/
-└── cocos-utils.ts       → Cocos 跨版本工具函数（主进程和面板共享）
 ```
 
 **你不需要关心：**
@@ -113,15 +113,13 @@ const platform = getPlatform(); // 'cocos-v2' | 'cocos-v3' | 'electron' | 'stand
 
 // 文件操作 - 四种模式下自动适配
 await api.readFile(path);                  // 读取文本文件
-await api.writeFile(path, content);        // 写入文本文件
 await api.readBinaryFile(path);            // 读取二进制文件 (ArrayBuffer)
 await api.writeBinaryFile(path, buffer);   // 写入二进制文件 (ArrayBuffer)
 await api.selectFile({ extensions: ['table'] });  // 选择文件
 await api.selectDirectory();               // 选择目录
-
-// UI 交互
-api.showMessage('提示', 'info');
-await api.confirm('确定删除?');
+await api.selectSavePath({ defaultName: 'data', extensions: ['table'] });  // 选择保存路径
+await api.exists(path);                    // 检查文件/目录是否存在
+await api.createDirectory(path);           // 创建目录
 ```
 
 ## 数据源格式
@@ -129,10 +127,7 @@ await api.confirm('确定删除?');
 数据存储为加密的 `.table` 二进制文件：
 
 ```typescript
-import { createDefaultDataSource, serializeDataSource, deserializeDataSource } from './utils/data-source';
-
-// 创建默认数据源
-const dataSource = createDefaultDataSource('myData');
+import { serializeDataSource, deserializeDataSource } from './utils/serializer';
 
 // 序列化为加密二进制
 const buffer = serializeDataSource(dataSource);
@@ -155,7 +150,7 @@ const loaded = deserializeDataSource(arrayBuffer);
 
 - **单个类/文件行数限制**：单个类或文件尽量不超过 **500 行**
   - 超过 500 行时，考虑拆分为多个模块
-  - 示例：`data-manager.ts` (928行) → 拆分为 5 个文件（`types.ts`, `field-factory.ts`, `import-helper.ts`, `serializer.ts`, `data-manager.ts`）
+  - 示例：`dataManager.ts` (928行) → 拆分为 6 个文件（`types.ts`, `fieldFactory.ts`, `importHelper.ts`, `serializer.ts`, `InterfaceGenerator.ts`, `dataManager.ts`）
 
 ### 命名规范
 
@@ -183,19 +178,18 @@ const loaded = deserializeDataSource(arrayBuffer);
   src/Components/
   ```
 
-- **文件命名**：使用 **大驼峰命名 (PascalCase)**
+- **文件命名**：使用 **驼峰命名 (camelCase)**，工具类/生成器可用 **大驼峰 (PascalCase)**
   ```
-  ✅ 正确（优先推荐）：
-  DataManager.ts
-  FieldFactory.ts
-  ImportHelper.ts
+  ✅ 正确：
+  dataManager.ts
+  fieldFactory.ts
+  importHelper.ts
+  InterfaceGenerator.ts
   
   ❌ 错误：
   data-manager.ts
   field-factory.ts
   import-helper.ts
-  DataManager.ts
-  FieldFactory.ts
   ```
 
 - **类命名**：使用 **大驼峰命名法 (PascalCase)**
