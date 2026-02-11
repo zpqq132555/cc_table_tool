@@ -100,17 +100,29 @@ class ExtensionsToolsPlugin extends BasePlugin {
     @MessageMethod
     async selectFile(options?: { title?: string; extensions?: string[] }): Promise<string | null> {
         try {
-            const result = await (Editor as any).Dialog.select({
-                title: options?.title || '选择文件',
-                type: 'file',
-                filters: options?.extensions ? options.extensions.map(ext => `*.${ext}`) : undefined,
-            });
-
-            if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
-                return null;
+            if (this.isV2) {
+                // v2: Editor.Dialog.openFile 封装 Electron 的 showOpenDialog（同步）
+                const filters = options?.extensions
+                    ? [{ name: 'Files', extensions: options.extensions }]
+                    : undefined;
+                const paths = Editor.Dialog.openFile({
+                    title: options?.title || '选择文件',
+                    properties: ['openFile'],
+                    filters,
+                });
+                // v2 返回 string[] 或 -1（取消）
+                if (!paths || paths === -1 || paths.length === 0) return null;
+                return paths[0];
+            } else {
+                // v3: Editor.Dialog.select
+                const result = await (Editor as any).Dialog.select({
+                    title: options?.title || '选择文件',
+                    type: 'file',
+                    filters: options?.extensions ? options.extensions.map(ext => `*.${ext}`) : undefined,
+                });
+                if (result.canceled || !result.filePaths || result.filePaths.length === 0) return null;
+                return result.filePaths[0];
             }
-
-            return result.filePaths[0];
         } catch (err) {
             this.error('选择文件失败', err);
             return null;
@@ -121,16 +133,23 @@ class ExtensionsToolsPlugin extends BasePlugin {
     @MessageMethod
     async selectDirectory(options?: { title?: string }): Promise<string | null> {
         try {
-            const result = await (Editor as any).Dialog.select({
-                title: options?.title || '选择目录',
-                type: 'directory',
-            });
-
-            if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
-                return null;
+            if (this.isV2) {
+                // v2: Editor.Dialog.openFile 配合 openDirectory 属性
+                const paths = Editor.Dialog.openFile({
+                    title: options?.title || '选择目录',
+                    properties: ['openDirectory'],
+                });
+                if (!paths || paths === -1 || paths.length === 0) return null;
+                return paths[0];
+            } else {
+                // v3: Editor.Dialog.select
+                const result = await (Editor as any).Dialog.select({
+                    title: options?.title || '选择目录',
+                    type: 'directory',
+                });
+                if (result.canceled || !result.filePaths || result.filePaths.length === 0) return null;
+                return result.filePaths[0];
             }
-
-            return result.filePaths[0];
         } catch (err) {
             this.error('选择目录失败', err);
             return null;
@@ -141,17 +160,29 @@ class ExtensionsToolsPlugin extends BasePlugin {
     @MessageMethod
     async selectSavePath(options?: { title?: string; defaultName?: string; extensions?: string[] }): Promise<string | null> {
         try {
-            const result = await (Editor as any).Dialog.save({
-                title: options?.title || '保存文件',
-                defaultPath: options?.defaultName || 'data.table',
-                filters: options?.extensions ? options.extensions.map(ext => `*.${ext}`) : undefined,
-            });
-
-            if (result.canceled || !result.filePath) {
-                return null;
+            if (this.isV2) {
+                // v2: Editor.Dialog.saveFile 封装 Electron 的 showSaveDialog（同步）
+                const filters = options?.extensions
+                    ? [{ name: 'Files', extensions: options.extensions }]
+                    : undefined;
+                const savePath = Editor.Dialog.saveFile({
+                    title: options?.title || '保存文件',
+                    defaultPath: options?.defaultName || 'data.table',
+                    filters,
+                });
+                // v2 返回 string 或 -1（取消）
+                if (!savePath || savePath === -1) return null;
+                return savePath;
+            } else {
+                // v3: Editor.Dialog.save
+                const result = await (Editor as any).Dialog.save({
+                    title: options?.title || '保存文件',
+                    defaultPath: options?.defaultName || 'data.table',
+                    filters: options?.extensions ? options.extensions.map(ext => `*.${ext}`) : undefined,
+                });
+                if (result.canceled || !result.filePath) return null;
+                return result.filePath;
             }
-
-            return result.filePath;
         } catch (err) {
             this.error('选择保存路径失败', err);
             return null;
@@ -185,8 +216,8 @@ class ExtensionsToolsPlugin extends BasePlugin {
     /** 刷新资源（通知 Cocos 编辑器刷新资源数据库） */
     @MessageMethod
     async refreshAssets(path: string): Promise<void> {
-        if (!path) {
-            this.warn('refreshAssets: path 参数为空，跳过刷新');
+        if (!path || typeof path !== 'string' || path.trim() === '') {
+            this.warn('refreshAssets: path 参数为空或无效，跳过刷新');
             return;
         }
         
