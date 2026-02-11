@@ -5,6 +5,9 @@
 
 import { VersionDetector, getEditor } from '../../core';
 
+// 声明全局 Editor 对象
+declare const Editor: any;
+
 // 面板 ID
 export const PANEL_NAME = 'table_tool.default';
 
@@ -59,6 +62,40 @@ function getVueEditorPath(): string {
 }
 
 /**
+ * 设置 postMessage 桥接（v2 专用）
+ * iframe 内无法直接使用 Editor.Ipc.sendToMain，
+ * 需要通过 postMessage 将请求转发到面板宿主，再由面板宿主代理 IPC 调用
+ */
+function setupPostMessageBridge(iframe: HTMLIFrameElement): void {
+    window.addEventListener('message', (event: MessageEvent) => {
+        const data = event.data;
+        if (!data || data.type !== 'ipc-request') return;
+        
+        const { requestId, method, args } = data;
+        console.log('[Panel Bridge] IPC request:', method, 'id:', requestId);
+        
+        // 通过面板宿主的 Editor.Ipc.sendToMain 转发到主进程
+        Editor.Ipc.sendToMain('table_tool:' + method, ...(args || []), (error: any, result: any) => {
+            console.log('[Panel Bridge] IPC response:', method, 'error:', error);
+            try {
+                const win = iframe.contentWindow;
+                if (win) {
+                    win.postMessage({
+                        type: 'ipc-response',
+                        requestId,
+                        error: error ? String(error) : null,
+                        result,
+                    }, '*');
+                }
+            } catch (e) {
+                console.error('[Panel Bridge] Failed to send response:', e);
+            }
+        });
+    });
+    console.log('[Panel Bridge] postMessage bridge ready');
+}
+
+/**
  * 面板就绪回调
  */
 function onPanelReady(panel: any): void {
@@ -70,6 +107,11 @@ function onPanelReady(panel: any): void {
         return;
     }
 
+    // v2: 设置 postMessage 桥接（iframe 无法直接使用 Editor.Ipc）
+    if (VersionDetector.isV2()) {
+        setupPostMessageBridge(iframe);
+    }
+
     // 设置 iframe 源
     const editorPath = getVueEditorPath();
     iframe.src = editorPath;
@@ -79,15 +121,19 @@ function onPanelReady(panel: any): void {
         if (loading) loading.style.display = 'none';
         iframe.style.display = 'block';
         
-        // 向 iframe 注入环境信息（作为备用）
         try {
             const win = iframe.contentWindow;
             if (win) {
-                // 传递 Editor 对象引用（用于 Cocos API）
-                (win as any).__COCOS_EDITOR__ = (globalThis as any).Editor;
                 (win as any).__PLATFORM__ = VersionDetector.isV2() ? 'cocos-v2' : 'cocos-v3';
                 
-                // 触发重新检测（如果 Vue 应用已经初始化）
+                // v3: 注入 Editor 对象（v3 的 Editor.Message 支持 iframe 调用）
+                if (!VersionDetector.isV2()) {
+                    const EditorObj = (typeof Editor !== 'undefined') ? Editor : (typeof globalThis !== 'undefined' ? (globalThis as any).Editor : undefined);
+                    (win as any).__COCOS_EDITOR__ = EditorObj;
+                }
+                
+                console.log('[Panel] iframe loaded, platform:', VersionDetector.isV2() ? 'v2' : 'v3');
+                
                 if (win.postMessage) {
                     win.postMessage({ type: 'platform-ready' }, '*');
                 }

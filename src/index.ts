@@ -7,9 +7,10 @@ export * from './core/interfaces';
 
 // 版本检测
 export {
+    VersionDetector,
     detectVersion,
     isV2,
-    isV3, VersionDetector
+    isV3
 } from './core/version-detector';
 
 // 工厂模式
@@ -20,7 +21,6 @@ export {
 
 // 基础插件类
 export {
-    BasePlugin, createPluginMain, MessageMethod
+    BasePlugin, MessageMethod, createPluginMain
 } from './core/base-plugin';
-
 

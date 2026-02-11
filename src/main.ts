@@ -185,6 +185,11 @@ class ExtensionsToolsPlugin extends BasePlugin {
     /** 刷新资源（通知 Cocos 编辑器刷新资源数据库） */
     @MessageMethod
     async refreshAssets(path: string): Promise<void> {
+        if (!path) {
+            this.warn('refreshAssets: path 参数为空，跳过刷新');
+            return;
+        }
+        
         try {
             await this.asset.refresh(path);
             this.log(`资源刷新成功: ${path}`);

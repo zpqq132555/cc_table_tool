@@ -100,26 +100,36 @@ export class DataManager {
 
     /**
      * 获取 JSON 导出根目录
-     * 优先使用设置的路径，否则默认为 数据源目录/数据源名.json
+     * 优先使用设置的路径，否则默认为 数据源目录/json
      */
     getJsonExportDir(): string {
         const settings = this.exportSettings;
         if (settings.jsonExportDir) {
             return settings.jsonExportDir;
         }
-        return `${this.dataSourceDir}\\${this.dataSourceName}.json`;
+        const dir = this.dataSourceDir;
+        if (!dir) {
+            console.warn('[DataManager] 数据源目录为空');
+            return '';
+        }
+        return `${dir}\\json`;
     }
 
     /**
      * 获取 TS 导出根目录
-     * 优先使用设置的路径，否则默认为 数据源目录/数据源名.ts
+     * 优先使用设置的路径，否则默认为 数据源目录/ts
      */
     getTsExportDir(): string {
         const settings = this.exportSettings;
         if (settings.tsExportDir) {
             return settings.tsExportDir;
         }
-        return `${this.dataSourceDir}\\${this.dataSourceName}.ts`;
+        const dir = this.dataSourceDir;
+        if (!dir) {
+            console.warn('[DataManager] 数据源目录为空');
+            return '';
+        }
+        return `${dir}\\ts`;
     }
 
     /**

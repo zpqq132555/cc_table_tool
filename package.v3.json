@@ -7,7 +7,7 @@
     "editor": ">=3.0.0",
     "main": "./dist/v3/main.js",
     "scripts": {
-        "build": "npx tsc"
+        "build": "npm run build:v2 && npm run build:v3"
     },
     "devDependencies": {
         "@cocos/creator-types": "^3.8.0",

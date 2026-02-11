@@ -56,62 +56,120 @@ function getEditorObject(): any {
 
 /**
  * 检测 Cocos 版本
+ * 优先使用 URL 参数或 __PLATFORM__ 注入，其次通过 Editor 对象检测
  */
 function getCocosVersion(): 'v2' | 'v3' | null {
-    const EditorObj = getEditorObject();
+    // 1. 从 URL 参数检测
+    if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const platform = urlParams.get('platform');
+        if (platform === 'cocos-v2') return 'v2';
+        if (platform === 'cocos-v3') return 'v3';
+    }
     
+    // 2. 从注入的 __PLATFORM__ 检测
+    if (typeof window !== 'undefined' && (window as any).__PLATFORM__) {
+        const plat = (window as any).__PLATFORM__;
+        if (plat === 'cocos-v2') return 'v2';
+        if (plat === 'cocos-v3') return 'v3';
+    }
+    
+    // 3. 通过 Editor 对象检测
+    const EditorObj = getEditorObject();
     if (!EditorObj) {
-        console.log('[Cocos API] Editor is undefined');
         return null;
     }
     
-    console.log('[Cocos API] Editor object:', EditorObj);
-    console.log('[Cocos API] Editor.Message:', EditorObj.Message);
-    console.log('[Cocos API] Editor.Ipc:', EditorObj.Ipc);
-    
-    // v3 使用 Editor.Message，v2 使用 Editor.Ipc
     if (EditorObj.Message !== undefined) {
-        console.log('[Cocos API] Detected Cocos v3');
         return 'v3';
     } else if (EditorObj.Ipc !== undefined) {
-        console.log('[Cocos API] Detected Cocos v2');
         return 'v2';
     }
     
-    console.warn('[Cocos API] Cannot detect Cocos version, Editor object does not have Message or Ipc');
     return null;
 }
 
+// ==================== v2 postMessage 桥接 ====================
+
+/** 请求计数器 */
+let requestCounter = 0;
+
+/** 等待响应的回调表 */
+const pendingRequests: Map<string, { resolve: Function; reject: Function; timer: any }> = new Map();
+
+/** 初始化 postMessage 监听（v2 专用） */
+let v2BridgeInited = false;
+function initV2Bridge(): void {
+    if (v2BridgeInited) return;
+    v2BridgeInited = true;
+    
+    window.addEventListener('message', (event: MessageEvent) => {
+        const data = event.data;
+        if (!data || data.type !== 'ipc-response') return;
+        
+        const { requestId, error, result } = data;
+        const pending = pendingRequests.get(requestId);
+        if (!pending) return;
+        
+        clearTimeout(pending.timer);
+        pendingRequests.delete(requestId);
+        
+        if (error) {
+            pending.reject(new Error(error));
+        } else {
+            pending.resolve(result);
+        }
+    });
+    console.log('[Cocos API] v2 postMessage bridge initialized');
+}
+
+/** 通过 postMessage 桥接发送 IPC 请求（v2 专用） */
+function sendViaPostMessage(method: string, ...args: any[]): Promise<any> {
+    initV2Bridge();
+    
+    const requestId = `req_${++requestCounter}_${Date.now()}`;
+    console.log('[Cocos API] v2 bridge request:', method, 'id:', requestId);
+    
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            pendingRequests.delete(requestId);
+            console.error('[Cocos API] v2 bridge timeout:', method);
+            reject(new Error(`IPC timeout: ${method}`));
+        }, 10000);
+        
+        pendingRequests.set(requestId, { resolve, reject, timer });
+        
+        // 发送到父窗口（面板宿主）
+        window.parent.postMessage({
+            type: 'ipc-request',
+            requestId,
+            method,
+            args,
+        }, '*');
+    });
+}
+
+// ==================== IPC 发送 ====================
+
 /**
  * 发送 IPC 消息到主进程
- * 自动适配 v2/v3 的不同 IPC 方式
+ * v3: 直接使用 Editor.Message.request
+ * v2: 通过 postMessage 桥接（iframe 无法直接调用 Editor.Ipc）
  */
 function sendToMain(method: string, ...args: any[]): Promise<any> {
     const version = getCocosVersion();
-    const EditorObj = getEditorObject();
     
     console.log('[Cocos API] sendToMain:', method, 'version:', version);
     
-    if (!EditorObj) {
-        return Promise.reject(new Error('Editor object not found'));
-    }
-    
     if (version === 'v3') {
-        // Cocos 3.x 使用 Editor.Message.request
-        console.log('[Cocos API] Using v3 IPC: Editor.Message.request');
+        const EditorObj = getEditorObject();
+        if (!EditorObj) {
+            return Promise.reject(new Error('Editor object not found'));
+        }
         return EditorObj.Message.request('table_tool', method, ...args);
     } else if (version === 'v2') {
-        // Cocos 2.x 使用 Editor.Ipc.sendToMain
-        console.log('[Cocos API] Using v2 IPC: Editor.Ipc.sendToMain');
-        return new Promise((resolve, reject) => {
-            EditorObj.Ipc.sendToMain('table_tool:' + method, ...args, (error: any, result: any) => {
-                if (error) {
-                    reject(error);
-                } else {
-                    resolve(result);
-                }
-            });
-        });
+        // v2: 通过 postMessage 桥接到面板宿主
+        return sendViaPostMessage(method, ...args);
     }
     
     return Promise.reject(new Error('Not in Cocos environment, version: ' + version));
@@ -165,6 +223,10 @@ export const cocosApi: IEditorApi = {
     },
 
     async refreshAssets(path: string) {
+        if (!path || path.trim() === '') {
+            console.warn('[Cocos API] refreshAssets: path 为空，跳过刷新');
+            return;
+        }
         return sendToMain('refreshAssets', path);
     },
 

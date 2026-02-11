@@ -1,11 +1,27 @@
 {
-    "package_version": 2,
     "name": "table_tool",
     "version": "1.0.0",
     "description": "Cross-version Cocos Creator extension with Vue Data Editor",
     "author": "oldP",
-    "editor": ">=3.0.0",
-    "main": "./dist/v3/main.js",
+    "main": "./dist/v2/main.js",
+    "main-menu": {
+        "i18n:table_tool.develop/i18n:table_tool.dataEditor": {
+            "message": "table_tool:openDataEditor"
+        }
+    },
+    "panel": {
+        "main": "./dist/v2/panels/default/index.js",
+        "type": "dockable",
+        "title": "Table Tool - 数据编辑器",
+        "width": 800,
+        "height": 600
+    },
+    "devDependencies": {
+        "@types/node": "^18.17.1",
+        "typescript": "^5.0.0",
+        "@cocos/creator-types": "^3.8.0",
+        "concurrently": "^8.2.0"
+    },
     "scripts": {
         "preinstall": "node ./scripts/install.js",
         "install:editor": "npm install --prefix src/panels/vue-editor",
@@ -23,72 +39,5 @@
         "dev:electron": "concurrently \"npm run dev:editor\" \"npm start --prefix electron -- --dev\"",
         "dev:electron:only": "npm start --prefix electron -- --dev",
         "build:exe": "npm run build --prefix electron"
-    },
-    "devDependencies": {
-        "@types/node": "^18.17.1",
-        "typescript": "^5.0.0",
-        "@cocos/creator-types": "^3.8.0",
-        "concurrently": "^8.2.0"
-    },
-    "contributions": {
-        "menu": [
-            {
-                "path": "i18n:table_tool.develop",
-                "label": "i18n:table_tool.dataEditor",
-                "message": "open-panel"
-            }
-        ],
-        "messages": {
-            "open-panel": {
-                "methods": [
-                    "openDataEditor"
-                ]
-            },
-            "getProjectPath": {
-                "methods": ["getProjectPath"]
-            },
-            "readFile": {
-                "methods": ["readFile"]
-            },
-            "readBinaryFile": {
-                "methods": ["readBinaryFile"]
-            },
-            "writeBinaryFile": {
-                "methods": ["writeBinaryFile"]
-            },
-            "selectFile": {
-                "methods": ["selectFile"]
-            },
-            "selectDirectory": {
-                "methods": ["selectDirectory"]
-            },
-            "selectSavePath": {
-                "methods": ["selectSavePath"]
-            },
-            "exists": {
-                "methods": ["exists"]
-            },
-            "createDirectory": {
-                "methods": ["createDirectory"]
-            }
-        }
-    },
-    "panels": {
-        "default": {
-            "title": "Table Tool - 数据编辑器",
-            "type": "dockable",
-            "main": "./dist/v3/panels/default/index.js",
-            "size": {
-                "min-width": 600,
-                "min-height": 400,
-                "width": 900,
-                "height": 600
-            }
-        }
-    },
-    "asset-db": {
-        "mount": {
-            "path": "./assets"
-        }
     }
 }
