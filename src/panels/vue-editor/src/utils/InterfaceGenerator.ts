@@ -89,26 +89,52 @@ function generateTableInterface(tableKey: string, tableDef: ITableDef): string {
         return `/** ${tableDef.name || tableKey} */\nexport interface ${interfaceName} {\n    [key: string]: any;\n}\n`;
     }
 
+    // 检查实际数据是否为数组类型
+    const firstData = Object.values(tableDef.data)[0];
+    const isArrayData = firstData && Array.isArray(firstData.info);
+
     const lines: string[] = [];
-    lines.push(`/** ${tableDef.name || tableKey}${tableDef.desc ? ' - ' + tableDef.desc : ''} */`);
-    lines.push(`export interface ${interfaceName} {`);
+    const comment = `${tableDef.name || tableKey}${tableDef.desc ? ' - ' + tableDef.desc : ''}`;
 
-    for (const field of fields) {
-        const tsType = getFieldTsType(field, 1);
-        // const optional = field.required ? '' : '?';
+    if (isArrayData) {
+        // 数据是数组类型，生成数组元素的 interface 和 type 别名
+        lines.push(`/** ${comment} - 数组元素 */`);
+        lines.push(`export interface ${interfaceName}Item {`);
 
-        // 注释
-        const commentParts: string[] = [];
-        if (field.name) commentParts.push(field.name);
-        if (field.desc) commentParts.push(field.desc);
-        if (commentParts.length > 0) {
-            lines.push(`    /** ${commentParts.join(' - ')} */`);
+        for (const field of fields) {
+            const tsType = getFieldTsType(field, 1);
+            const commentParts: string[] = [];
+            if (field.name) commentParts.push(field.name);
+            if (field.desc) commentParts.push(field.desc);
+            if (commentParts.length > 0) {
+                lines.push(`    /** ${commentParts.join(' - ')} */`);
+            }
+            lines.push(`    ${field.key}: ${tsType};`);
         }
 
-        lines.push(`    ${field.key}: ${tsType};`);
+        lines.push('}');
+        lines.push('');
+        lines.push(`/** ${comment} */`);
+        lines.push(`export type ${interfaceName} = Array<${interfaceName}Item>;`);
+    } else {
+        // 数据是对象类型，生成普通 interface
+        lines.push(`/** ${comment} */`);
+        lines.push(`export interface ${interfaceName} {`);
+
+        for (const field of fields) {
+            const tsType = getFieldTsType(field, 1);
+            const commentParts: string[] = [];
+            if (field.name) commentParts.push(field.name);
+            if (field.desc) commentParts.push(field.desc);
+            if (commentParts.length > 0) {
+                lines.push(`    /** ${commentParts.join(' - ')} */`);
+            }
+            lines.push(`    ${field.key}: ${tsType};`);
+        }
+
+        lines.push('}');
     }
 
-    lines.push('}');
     return lines.join('\n');
 }
 

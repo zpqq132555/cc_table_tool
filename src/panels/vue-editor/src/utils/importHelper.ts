@@ -66,10 +66,12 @@ function createTableFromArray(key: string, data: any[], nextIndex: number): ITab
 /**
  * 从对象创建表
  * 例如：{item1: {name:"A", value:100}, item2: {name:"B", value:200}}
+ * 或者：{level_1: [{...}], level_2: [{...}]}
  * 
  * 导入策略：
  * - 对象的每个 key 作为数据的 key
  * - 对象的每个 value 作为一条数据的 info
+ * - 如果 value 是数组，则从数组的第一个元素分析字段结构
  */
 function createTableFromObject(key: string, data: Record<string, any>, nextIndex: number): ITableDef {
     const entries = Object.entries(data);
@@ -80,7 +82,18 @@ function createTableFromObject(key: string, data: Record<string, any>, nextIndex
 
     // 从第一条数据分析字段
     const firstValue = entries[0][1];
-    const fields = analyzeFields(firstValue);
+    
+    // 如果值是数组，从数组第一个元素分析字段（避免包装 items）
+    // 否则直接分析值本身
+    let fields: IFieldDef[];
+    if (Array.isArray(firstValue)) {
+        if (firstValue.length === 0) {
+            throw new Error('数组为空，无法创建表');
+        }
+        fields = analyzeFields(firstValue[0]);
+    } else {
+        fields = analyzeFields(firstValue);
+    }
 
     // 创建表定义
     const tableDef: ITableDef = {
