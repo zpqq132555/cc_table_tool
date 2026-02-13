@@ -239,8 +239,8 @@ import {
     getInterfaceFileName,
     stripTimestamp,
 } from "../utils/InterfaceGenerator";
-import type { IFieldDef, ITableDef } from "../utils/types";
 import { operationLogger } from "../utils/operationLogger";
+import type { IFieldDef, ITableDef } from "../utils/types";
 import FieldInput from "./FieldInput.vue";
 
 // 同步脚本开关（跟随数据源持久化）
