@@ -238,7 +238,9 @@ import {
     generateIndexFileWithPaths,
     generateTableInterfaceFile,
     getInterfaceFileName,
+    stripTimestamp,
 } from "./utils/InterfaceGenerator";
+import { operationLogger } from "./utils/operationLogger";
 
 // 平台信息
 const platform = ref<string>(getPlatform());
@@ -507,6 +509,10 @@ async function handleExportAll() {
           `\n\nJSON: ${jsonDir}` +
           `${syncInterface.value ? `\nTS:   ${tsDir}` : ""}`,
       );
+
+      // 记录操作日志
+      await operationLogger.log('EXPORT_ALL', `导出全部数据表，成功 ${successCount} 个${failCount > 0 ? `，失败 ${failCount} 个` : ''}`);
+
       return;
     }
 
@@ -583,6 +589,22 @@ async function handleExportAll() {
  * 文件路径：tsDir/exportPath/ITableKey.ts
  * 索引文件：tsDir/index.ts（带相对路径导入）
  */
+/**
+ * 检查生成的内容与已有文件是否等价（忽略时间戳）
+ * @returns true 表示内容相同，无需更新
+ */
+async function isInterfaceUnchanged(filePath: string, newContent: string): Promise<boolean> {
+  try {
+    const exists = await api.exists(filePath);
+    if (!exists) return false;
+    const oldContent = await api.readFile(filePath);
+    if (!oldContent) return false;
+    return stripTimestamp(oldContent) === stripTimestamp(newContent);
+  } catch {
+    return false;
+  }
+}
+
 async function generateInterfaceFilesStructured(
   tsDir: string,
   tsItems: {
@@ -604,8 +626,12 @@ async function generateInterfaceFilesStructured(
     await api.createDirectory(subDir);
 
     const filePath = `${subDir}\\${fileName}`;
-    const buffer = new TextEncoder().encode(content).buffer;
-    await api.writeBinaryFile(filePath, buffer);
+    // 检查内容是否有变化，避免无意义的时间戳更新
+    const unchanged = await isInterfaceUnchanged(filePath, content);
+    if (!unchanged) {
+      const buffer = new TextEncoder().encode(content).buffer;
+      await api.writeBinaryFile(filePath, buffer);
+    }
 
     indexEntries.push(item);
   }
@@ -614,8 +640,11 @@ async function generateInterfaceFilesStructured(
   if (indexEntries.length > 0) {
     const indexContent = generateIndexFileWithPaths(indexEntries);
     const indexPath = `${tsDir}\\index.ts`;
-    const indexBuffer = new TextEncoder().encode(indexContent).buffer;
-    await api.writeBinaryFile(indexPath, indexBuffer);
+    const idxUnchanged = await isInterfaceUnchanged(indexPath, indexContent);
+    if (!idxUnchanged) {
+      const indexBuffer = new TextEncoder().encode(indexContent).buffer;
+      await api.writeBinaryFile(indexPath, indexBuffer);
+    }
   }
 }
 
@@ -689,9 +718,18 @@ function handleEditTable(table: { key: string }) {
 }
 
 // ==================== 表保存成功 ====================
-function handleTableSaved() {
+function handleTableSaved(info?: { key: string; name: string; isNew: boolean }) {
   console.log("[App] 表保存成功");
   currentView.value = "config";
+
+  // 记录操作日志
+  if (info) {
+    if (info.isNew) {
+      operationLogger.log('CREATE_TABLE', `新建数据表「${info.name}」(key: ${info.key})`, info.key);
+    } else {
+      operationLogger.log('UPDATE_TABLE', `修改数据表「${info.name}」(key: ${info.key})`, info.key);
+    }
+  }
 }
 
 // ==================== 删除表 ====================
@@ -700,8 +738,21 @@ async function handleDeleteTable(table: { key: string; name: string }) {
   // 确认删除
   if (confirm(`确定要删除表 "${table.name}" 吗？\n此操作不可恢复！`)) {
     try {
+      // 删除前先获取表信息，用于清理导出文件
+      const tableDef = dataManager.getTable(table.key);
+      const exportPath = tableDef?.exportPath || '';
+
       await dataManager.deleteTable(table.key);
       console.log("[App] 表已删除:", table.key);
+
+      // 在 Cocos/Electron 模式下同步删除导出的 JSON 和 TS 文件
+      const plat = getPlatform();
+      if (plat === "cocos-v2" || plat === "cocos-v3" || plat === "electron") {
+        await deleteExportedFiles(table.key, exportPath);
+      }
+
+      // 记录操作日志
+      await operationLogger.log('DELETE_TABLE', `删除数据表「${table.name}」(key: ${table.key})`, table.key);
     } catch (err) {
       console.error("[App] 删除表失败:", err);
       alert("删除表失败: " + (err as Error).message);
@@ -710,6 +761,45 @@ async function handleDeleteTable(table: { key: string; name: string }) {
 }
 
 // ==================== 打开表 ====================
+/**
+ * 删除表对应的导出文件（JSON + TS）
+ */
+async function deleteExportedFiles(tableKey: string, exportPath: string) {
+  try {
+    const jsonDir = dataManager.getJsonExportDir();
+    const tsDir = dataManager.getTsExportDir();
+
+    // 删除 JSON 文件: jsonDir/exportPath/tableKey.json
+    const jsonSubDir = exportPath ? `${jsonDir}\\${exportPath}` : jsonDir;
+    const jsonFilePath = `${jsonSubDir}\\${tableKey}.json`;
+    const jsonDeleted = await api.deleteFile(jsonFilePath);
+    if (jsonDeleted) {
+      console.log("[App] 已删除导出 JSON:", jsonFilePath);
+    }
+
+    // 删除 TS 文件: tsDir/exportPath/ITableKey.ts
+    const tsSubDir = exportPath ? `${tsDir}\\${exportPath}` : tsDir;
+    const tsFileName = getInterfaceFileName(tableKey);
+    const tsFilePath = `${tsSubDir}\\${tsFileName}`;
+    const tsDeleted = await api.deleteFile(tsFilePath);
+    if (tsDeleted) {
+      console.log("[App] 已删除导出 TS:", tsFilePath);
+    }
+
+    // 刷新 Cocos 资源数据库
+    if (isCocos.value) {
+      try {
+        if (jsonDeleted) await api.refreshAssets?.(jsonSubDir);
+        if (tsDeleted) await api.refreshAssets?.(tsSubDir);
+      } catch (e) {
+        console.warn("[App] 刷新资源失败:", e);
+      }
+    }
+  } catch (err) {
+    console.warn("[App] 删除导出文件失败:", err);
+  }
+}
+
 function handleOpenTable(table: any) {
   console.log("[App] 打开表:", table);
   editingTableKey.value = table.key;
@@ -761,6 +851,9 @@ async function autoLoadCocosData() {
             await dataManager.create(dataFile);
             console.log("[App] 数据创建成功");
           }
+
+          // 初始化操作日志记录器
+          operationLogger.init(dataManager.dataSourceDir);
 
           break; // 成功后退出循环
         }

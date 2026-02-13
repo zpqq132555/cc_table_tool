@@ -1,6 +1,6 @@
 {
     "name": "table-tool-electron",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Table Tool Desktop App",
     "main": "main.js",
     "scripts": {

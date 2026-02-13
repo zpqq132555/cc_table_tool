@@ -1,6 +1,6 @@
 {
     "name": "table_tool",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Cross-version Cocos Creator extension with Vue Data Editor",
     "author": "oldP",
     "main": "./dist/v2/main.js",

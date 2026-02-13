@@ -213,6 +213,34 @@ class ExtensionsToolsPlugin extends BasePlugin {
         }
     }
 
+    /** 写入文本文件 */
+    @MessageMethod
+    async writeFile(filePath: string, content: string): Promise<boolean> {
+        try {
+            fs.writeFileSync(filePath, content, 'utf-8');
+            return true;
+        } catch (err) {
+            this.error(`写入文件失败: ${filePath}`, err);
+            return false;
+        }
+    }
+
+    /** 删除文件 */
+    @MessageMethod
+    async deleteFile(filePath: string): Promise<boolean> {
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                this.log(`文件已删除: ${filePath}`);
+                return true;
+            }
+            return false;
+        } catch (err) {
+            this.error(`删除文件失败: ${filePath}`, err);
+            return false;
+        }
+    }
+
     /** 刷新资源（通知 Cocos 编辑器刷新资源数据库） */
     @MessageMethod
     async refreshAssets(path: string): Promise<void> {

@@ -53,6 +53,12 @@ export interface IEditorApi {
     /** 创建目录 */
     createDirectory(path: string): Promise<boolean>;
 
+    /** 写入文本文件 */
+    writeFile(path: string, content: string): Promise<boolean>;
+
+    /** 删除文件 */
+    deleteFile(path: string): Promise<boolean>;
+
     /** 刷新资源（Cocos 编辑器专用） */
     refreshAssets?(path: string): Promise<void>;
 

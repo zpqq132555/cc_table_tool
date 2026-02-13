@@ -313,7 +313,7 @@ async function handleSave() {
     }
 
     console.log('[TableEditor] 保存成功');
-    emit('saved');
+    emit('saved', { key: form.key, name: form.name, isNew: !isEdit.value });
   } catch (err) {
     console.error('[TableEditor] 保存失败:', err);
     alert('保存失败: ' + (err as Error).message);

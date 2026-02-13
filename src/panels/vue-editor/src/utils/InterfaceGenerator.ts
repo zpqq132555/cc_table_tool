@@ -224,3 +224,11 @@ export function generateIndexFileWithPaths(
 export function getInterfaceFileName(tableKey: string): string {
     return `I${tableKey.charAt(0).toUpperCase() + tableKey.slice(1)}.ts`;
 }
+
+/**
+ * 去除生成内容中的时间戳行，用于内容比较
+ * 时间戳行格式: " * 生成时间: xxxx"
+ */
+export function stripTimestamp(content: string): string {
+    return content.replace(/^ \* 生成时间:.*$/gm, '').trim();
+}

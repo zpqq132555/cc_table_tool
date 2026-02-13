@@ -386,4 +386,16 @@ export const standaloneApi: IEditorApi = {
         console.warn('[Standalone] 浏览器环境不支持创建目录');
         return false;
     },
+
+    async writeFile(path: string, content: string) {
+        // 浏览器环境不支持直接写入文本文件
+        console.warn('[Standalone] 浏览器环境不支持写入文本文件');
+        return false;
+    },
+
+    async deleteFile(path: string) {
+        // 浏览器环境不支持删除文件
+        console.warn('[Standalone] 浏览器环境不支持删除文件');
+        return false;
+    },
 };

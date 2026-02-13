@@ -1,5 +1,10 @@
 # Table Tool - Cocos Creator 跨版本 Vue 数据编辑器
 
+![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
+![Cocos 2.x](https://img.shields.io/badge/Cocos%202.x-✓-green.svg)
+![Cocos 3.x](https://img.shields.io/badge/Cocos%203.x-✓-green.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+
 ## 📖 简介
 
 Table Tool 是一个基于 **Cocos Creator 跨版本插件框架** 开发的 **Vue 数据编辑器工具**，采用 **抽象接口 + 版本检测 + 工厂模式 + 适配器模式** 实现跨 Cocos Creator 2.x 和 3.x 版本的兼容。
@@ -31,7 +36,15 @@ Table Tool 是一个基于 **Cocos Creator 跨版本插件框架** 开发的 **V
 | **Cocos 2.x** | CC 2.x 插件模式 | 编辑器内使用 |
 | **Cocos 3.x** | CC 3.x 插件模式 | 编辑器内使用 |
 
-## 🚀 快速开始
+## � 文档
+
+- **[快速开始](./快速开始.md)** - 5 分钟上手指南
+- **[使用说明](./使用说明.md)** - 详细功能文档
+- **[项目架构](./项目架构说明.md)** - 框架设计说明
+- **[更新日志](./CHANGELOG.md)** - 版本变更记录
+- **[FAQ](./FAQ.md)** - 常见问题解答
+
+## �🚀 快速开始
 
 **第一次使用？** 查看 **[快速开始.md](./快速开始.md)** - 5分钟上手指南
 

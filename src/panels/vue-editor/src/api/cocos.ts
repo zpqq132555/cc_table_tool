@@ -222,6 +222,14 @@ export const cocosApi: IEditorApi = {
         return sendToMain('createDirectory', path);
     },
 
+    async writeFile(path: string, content: string) {
+        return sendToMain('writeFile', path, content);
+    },
+
+    async deleteFile(path: string) {
+        return sendToMain('deleteFile', path);
+    },
+
     async refreshAssets(path: string) {
         if (!path || path.trim() === '') {
             console.warn('[Cocos API] refreshAssets: path 为空，跳过刷新');

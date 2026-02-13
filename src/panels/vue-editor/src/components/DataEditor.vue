@@ -237,8 +237,10 @@ import { getDefaultValue } from "../utils/fieldFactory";
 import {
     generateTableInterfaceFile,
     getInterfaceFileName,
+    stripTimestamp,
 } from "../utils/InterfaceGenerator";
 import type { IFieldDef, ITableDef } from "../utils/types";
+import { operationLogger } from "../utils/operationLogger";
 import FieldInput from "./FieldInput.vue";
 
 // 同步脚本开关（跟随数据源持久化）
@@ -613,6 +615,8 @@ async function handleExport() {
           `${syncInterface.value ? "\n已同步生成 Interface 声明文件" : ""}` +
           `\n\n${jsonFilePath}`
         );
+        // 记录操作日志
+        await operationLogger.log('EXPORT_TABLE', `导出数据表「${table.value?.name || props.tableKey}」`, props.tableKey);
       } else {
         alert("导出失败");
       }
@@ -651,11 +655,27 @@ async function handleExport() {
 
 /**
  * 生成单个表的 interface 文件（Cocos / Electron 平台）
+ * 内容相同时跳过写入，避免无意义的时间戳更新
  */
 async function generateSingleInterface(dir: string, tableKey: string, tableDef: ITableDef) {
   const content = generateTableInterfaceFile(tableKey, tableDef);
   const fileName = getInterfaceFileName(tableKey);
   const filePath = dir + "\\" + fileName;
+
+  // 检查内容是否有变化
+  try {
+    const exists = await api.exists(filePath);
+    if (exists) {
+      const oldContent = await api.readFile(filePath);
+      if (oldContent && stripTimestamp(oldContent) === stripTimestamp(content)) {
+        console.log('[DataEditor] Interface 内容未变化，跳过写入:', filePath);
+        return;
+      }
+    }
+  } catch {
+    // 忽略比较失败，继续写入
+  }
+
   const tsBuffer = new TextEncoder().encode(content).buffer;
   await api.writeBinaryFile(filePath, tsBuffer);
 }
