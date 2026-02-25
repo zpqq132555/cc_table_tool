@@ -67,10 +67,5 @@
                 "height": 600
             }
         }
-    },
-    "asset-db": {
-        "mount": {
-            "path": "./assets"
-        }
     }
 }

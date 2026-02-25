@@ -27,7 +27,6 @@
         "install:editor": "npm install --prefix src/panels/vue-editor",
         "install:electron": "npm install --prefix electron",
         "install:all": "npm install && npm run install:editor && npm run install:electron",
-        "build": "npx tsc",
         "build:v2": "npx tsc -p tsconfig.v2.json && npm run build:vue-v2",
         "build:v3": "npx tsc -p tsconfig.v3.json && npm run build:vue-v3",
         "build:vue-v2": "npm run build --prefix src/panels/vue-editor -- --mode cocos --outDir ../../../dist/v2/vue-editor",
