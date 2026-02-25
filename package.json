@@ -33,11 +33,10 @@
         "build:vue-v2": "npm run build --prefix src/panels/vue-editor -- --mode cocos --outDir ../../../dist/v2/vue-editor",
         "build:vue-v3": "npm run build --prefix src/panels/vue-editor -- --mode cocos --outDir ../../../dist/v3/vue-editor",
         "build:all": "npm run build:v2 && npm run build:v3",
-        "watch": "npx tsc -w",
+        "build:exe": "npm run build --prefix electron",
         "build:editor": "npm run build:cocos --prefix src/panels/vue-editor",
         "dev:editor": "npm run dev --prefix src/panels/vue-editor",
         "dev:electron": "concurrently \"npm run dev:editor\" \"npm start --prefix electron -- --dev\"",
-        "dev:electron:only": "npm start --prefix electron -- --dev",
-        "build:exe": "npm run build --prefix electron"
+        "dev:electron:only": "npm start --prefix electron -- --dev"
     }
 }
