@@ -162,7 +162,8 @@ export class CocosBridge implements IBridgeApi {
     async loadProjectData(relativePath: string): Promise<any | null> {
         const projectPath = this.getProjectPath();
         if (!projectPath) return null;
-        
+        if (!relativePath || typeof relativePath !== 'string' || relativePath.trim() === '') return null;
+
         const fullPath = path.join(projectPath, relativePath);
         const content = await this.readFile(fullPath);
         if (!content) return null;
@@ -177,7 +178,11 @@ export class CocosBridge implements IBridgeApi {
     async saveProjectData(relativePath: string, data: any): Promise<boolean> {
         const projectPath = this.getProjectPath();
         if (!projectPath) return false;
-        
+        if (!relativePath || typeof relativePath !== 'string' || relativePath.trim() === '') {
+            console.warn('saveProjectData: relativePath parameter is empty or invalid, skipping save');
+            return false;
+        }
+
         const fullPath = path.join(projectPath, relativePath);
         const content = JSON.stringify(data, null, 2);
         const success = await this.writeFile(fullPath, content);
@@ -243,6 +248,11 @@ export class CocosBridge implements IBridgeApi {
     async refreshAssets(relativePath: string): Promise<void> {
         try {
             const asset = getAsset();
+            if (!relativePath || typeof relativePath !== 'string' || relativePath.trim() === '') {
+                console.warn('refreshAssets: relativePath parameter is empty or invalid, skipping refresh');
+                return;
+            }
+
             const dbPath = relativePath.startsWith('db://') 
                 ? relativePath 
                 : `db://assets/${relativePath}`;
